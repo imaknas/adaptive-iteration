@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 import re
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from .analyzer import AnalysisResult
 from .experiment import Experiment, Variant
@@ -162,7 +162,7 @@ class HypothesisEngine:
 
         # Winning patterns
         if analysis.winning_patterns:
-            parts.append(f"\n## Known winners by variable\n" +
+            parts.append("\n## Known winners by variable\n" +
                          "\n".join(f"  {k}: {v}" for k, v in analysis.winning_patterns.items()))
 
         # High-variance dimensions

@@ -18,7 +18,6 @@ import json
 from pathlib import Path
 from typing import Any, Optional
 
-
 _DEFAULTS: dict[str, Any] = {
     "domain":                "default",
     "primary_metric":        "primary_metric",
