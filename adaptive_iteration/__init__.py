@@ -24,7 +24,7 @@ from .core.ledger import Ledger
 from .core.metrics import MetricSpec, Observation
 from .core.registry import DuplicateDetector, TokenSetDetector, VariableDef, VariableRegistry
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 
 __all__ = [
     "Decision", "DecisionRule", "Outcome", "ProportionIntervalRule", "WelchIntervalRule", "Evaluator",

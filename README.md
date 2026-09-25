@@ -18,6 +18,11 @@ parts that should not depend on your domain or your tools:
 **New here? Start with the [tutorial](docs/tutorial.md)**: a complete first
 experiment, explained for someone who has never used the framework.
 
+**Building an agent?** The same operations are available as an **MCP server** and a
+**JSON CLI**, with guardrails an automated loop can't talk its way around (no acting
+on interim numbers, no moving the goalposts mid-experiment). See
+[docs/agents.md](docs/agents.md).
+
 It deliberately does **not** decide where hypotheses come from. You inject a
 `Proposer`: a language model, a parameter grid, a rules engine, or a person.
 `core/` uses the standard library only.
@@ -30,7 +35,8 @@ It deliberately does **not** decide where hypotheses come from. You inject a
 uv add adaptive-iteration      # or: pip install adaptive-iteration
 ```
 
-Python 3.10+. No runtime dependencies.
+Python 3.10+. No runtime dependencies. For the MCP server:
+`pip install "adaptive-iteration[mcp]"`.
 
 ---
 
