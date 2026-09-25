@@ -50,3 +50,4 @@ secrets/
 .agent-memory/
 .claude/
 CLAUDE.md
+CLAUDE.local.md
