@@ -84,10 +84,15 @@ and compares it with the region of practical equivalence `±min_effect`:
 
 | Outcome | When |
 |---|---|
-| `B_BETTER` / `A_BETTER` | the whole interval lies beyond `+min_effect` / `−min_effect` |
+| `B_BETTER` / `A_BETTER` | the interval excludes 0 **and** the estimated effect is at least `min_effect` |
 | `EQUIVALENT` | the whole interval lies inside `±min_effect` |
 | `INSUFFICIENT` | anything else before the last checkpoint (with an estimate of how many more units are needed) |
 | `NO_DETECTABLE_DIFF` | anything else at the last checkpoint |
+
+`WelchIntervalRule(superiority="margin")` is a stricter variant that requires the
+whole interval to clear `min_effect`. On real short-video data (see replay below)
+both kept false positives under 5%, but the stricter variant caught a true
+10-point effect 16% of the time versus 55%, so it is not the default.
 
 Alpha is split across the checkpoints (Bonferroni), so looking every week keeps the
 experiment-wide false-positive rate under 5%. Closing one experiment never stops the
@@ -102,6 +107,36 @@ Evaluator(ledger, rule=MyBayesianRule())
 
 ---
 
+## Judging the judge: replay
+
+Before trusting a rule — or switching to a new one — test it on your own data.
+Adapted from the replay idea in [Dream-RSI](https://arxiv.org/abs/2609.14858):
+recorded history becomes a simulator, and a candidate is adopted only if it is not
+worse than the incumbent.
+
+```python
+from adaptive_iteration.replay import calibrate, gate, replay
+
+pool = [...]  # every real per-unit value of the metric you have
+
+# How often does a rule crown a winner when nothing differs? How often does it
+# catch a real 10-point effect, and after how many weeks?
+calibrate(pool, WelchIntervalRule(), spec, effect=0,  per_window=20)
+calibrate(pool, WelchIntervalRule(), spec, effect=10, per_window=20)
+
+# Adopt only if false positives stay ≤ 5% and detection is not worse
+gate(candidate_rule, current_rule, pool, spec, effects=(5, 10, 20), per_window=20)
+
+# What would the Evaluator have said, week by week, on a recorded experiment?
+replay(experiment, observations, spec, rule=candidate_rule)
+```
+
+Replay only reuses outcomes that were actually observed. It can evaluate *how you
+judge and schedule* experiments; it cannot predict how an untested hypothesis would
+have done.
+
+---
+
 ## Proposers
 
 ```python
@@ -111,7 +146,9 @@ class Proposer(Protocol):
 
 `EvidenceSummary` is plain data: every variable's status (`untested`, `open`,
 `concluded`, `equivalent`, `no_detectable_diff`, `legacy_unverified`), best variant,
-effect and interval, plus the registry, metric dispersion and data-quality counts.
+effect and interval, units still needed for open experiments, plus the registry,
+metric dispersion, data-quality counts, and the cost of judging so far (units spent
+per decisive result) — so a proposer can prefer hypotheses that resolve quickly.
 `evidence.to_markdown()` renders it for a prompt if you want one.
 
 `examples/llm_proposer.py` shows a model-backed proposer that takes any

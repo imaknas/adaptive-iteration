@@ -1,12 +1,13 @@
 """core/_stats.py — Student t distribution with the standard library only.
 
 The CDF uses the regularized incomplete beta function (continued fraction,
-Numerical Recipes §6.4); the quantile inverts it by bisection. Accuracy is
+Numerical Recipes §6.4); the quantile inverts it with safeguarded Newton. Accuracy is
 ~1e-10, far beyond what a decision rule needs, and keeps core/ free of scipy.
 """
 from __future__ import annotations
 
 import math
+from statistics import NormalDist
 
 _EPS = 1e-14
 _MAX_ITER = 300
@@ -57,8 +58,18 @@ def t_cdf(t: float, df: float) -> float:
     return 1.0 - tail if t >= 0 else tail
 
 
+def t_pdf(t: float, df: float) -> float:
+    ln = (math.lgamma((df + 1) / 2) - math.lgamma(df / 2) - 0.5 * math.log(df * math.pi)
+          - (df + 1) / 2 * math.log1p(t * t / df))
+    return math.exp(ln)
+
+
 def t_ppf(p: float, df: float) -> float:
-    """Quantile of Student's t: the t such that P(T <= t) = p."""
+    """Quantile of Student's t: the t such that P(T <= t) = p.
+
+    Newton steps from the normal quantile, kept inside a shrinking bisection bracket
+    so a bad step can never escape (heavy tails at df ≈ 1 make pure Newton unsafe).
+    """
     if not 0.0 < p < 1.0:
         raise ValueError("p must be in (0, 1)")
     if p == 0.5:
@@ -67,13 +78,18 @@ def t_ppf(p: float, df: float) -> float:
         return -t_ppf(1.0 - p, df)
     lo, hi = 0.0, 1.0
     while t_cdf(hi, df) < p:
-        hi *= 2.0
-    for _ in range(200):
-        mid = (lo + hi) / 2.0
-        if t_cdf(mid, df) < p:
-            lo = mid
+        lo, hi = hi, hi * 2.0
+    x = min(max(NormalDist().inv_cdf(p), lo), hi)
+    for _ in range(100):
+        f = t_cdf(x, df) - p
+        if abs(f) < 1e-13:
+            return x
+        if f < 0:
+            lo = x
         else:
-            hi = mid
+            hi = x
+        step = x - f / t_pdf(x, df)
+        x = step if lo < step < hi else (lo + hi) / 2.0
         if hi - lo < 1e-12 * max(1.0, hi):
             break
-    return (lo + hi) / 2.0
+    return x

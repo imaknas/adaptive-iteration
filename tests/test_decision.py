@@ -112,3 +112,14 @@ def test_power_for_a_real_effect():
     # min_effect (not merely "B is higher"), which lands around 85–90% by week 4
     outcomes = _simulate(effect=10.0, sims=500, seed=1)
     assert sum(o is Outcome.B_BETTER for o in outcomes) / len(outcomes) > 0.8
+
+
+def test_superiority_modes_differ_at_the_boundary():
+    # effect ≈ 5, clearly above 0 but interval dips below min_effect=3
+    rng = random.Random(9)
+    a, b = sample(normal(rng, 50, 4, 40)), sample(normal(rng, 55, 4, 40))
+    spec = MetricSpec(name="m", min_effect=3.0)
+    assert WelchIntervalRule(superiority="significance").decide(a, b, spec, ctx()).outcome \
+        is Outcome.B_BETTER
+    assert WelchIntervalRule(superiority="margin").decide(a, b, spec, ctx()).outcome \
+        is Outcome.INSUFFICIENT

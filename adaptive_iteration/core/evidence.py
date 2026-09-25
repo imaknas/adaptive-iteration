@@ -29,6 +29,7 @@ class VariableEvidence:
     n_observations: int
     experiments: tuple[str, ...]
     definition: Optional[VariableDef] = None
+    needed_n: Optional[int] = None   # open experiments: latest estimate of units still needed per arm
 
 
 @dataclass(frozen=True)
@@ -39,20 +40,22 @@ class EvidenceSummary:
     open_experiments: tuple[str, ...]
     metric_dispersion: dict[str, float]
     data_quality: dict[str, int]
+    cost: dict[str, Optional[float]]   # what judging has cost so far, see build_evidence()
 
     def to_markdown(self) -> str:
         lines = [f"# Evidence — {self.domain}",
                  f"Metric: {self.metric.name} "
                  f"({'higher' if self.metric.higher_is_better else 'lower'} is better, "
                  f"min meaningful effect {self.metric.min_effect:g})", ""]
-        lines.append("| variable | status | best | effect [interval] | n |")
-        lines.append("|---|---|---|---|---|")
+        lines.append("| variable | status | best | effect [interval] | n | still needed/arm |")
+        lines.append("|---|---|---|---|---|---|")
         for v in self.variables:
             eff = "" if v.effect is None else f"{v.effect:+.3g}"
             if v.interval:
                 eff += f" [{v.interval[0]:.3g}, {v.interval[1]:.3g}]"
+            need = "" if v.needed_n is None else str(v.needed_n)
             lines.append(f"| {v.variable} | {v.status} | {v.best_variant or ''} | {eff} "
-                         f"| {v.n_observations} |")
+                         f"| {v.n_observations} | {need} |")
         defs = [v.definition for v in self.variables if v.definition]
         if defs:
             lines += ["", "## Registered variables"]
@@ -63,6 +66,14 @@ class EvidenceSummary:
         if self.metric_dispersion:
             lines += ["", "## Metric dispersion (stdev across units)"]
             lines += [f"- {k}: {v:.3g}" for k, v in sorted(self.metric_dispersion.items())]
+        if self.cost.get("closed_experiments"):
+            c = self.cost
+            per = c["units_per_decisive"]
+            lines += ["", "## Cost of judging",
+                      f"- closed experiments: {c['closed_experiments']:g}, decisive: "
+                      f"{c['decisive']:g}, no detectable difference: {c['no_detectable_diff']:g}",
+                      f"- units per decisive result: {per:.0f}" if per is not None
+                      else "- units per decisive result: (no decisive result yet)"]
         if any(self.data_quality.values()):
             lines += ["", "## Data quality",
                       *[f"- {k}: {v}" for k, v in self.data_quality.items() if v]]
@@ -101,9 +112,12 @@ def build_evidence(ledger: Ledger, domain: str, spec: MetricSpec) -> EvidenceSum
         finals = [(ledger.final_decision(e.id), e) for e in exps]
         finals = [(d, e) for d, e in finals if d is not None]
         status: Status
-        best = effect = interval = None
+        best = effect = interval = needed = None
         if still_open:
             status = "open"
+            latest = [d for e_id in still_open for d in ledger.decisions(e_id)]
+            if latest:
+                needed = max(latest, key=lambda d: d.decided_at).needed_n
         elif finals:
             d, e = max(finals, key=lambda de: de[0].decided_at)
             status = _STATUS_BY_OUTCOME[d.outcome]
@@ -120,7 +134,7 @@ def build_evidence(ledger: Ledger, domain: str, spec: MetricSpec) -> EvidenceSum
         evidence.append(VariableEvidence(
             variable=name, status=status, best_variant=best, effect=effect, interval=interval,
             n_observations=n_obs, experiments=tuple(e.id for e in exps),
-            definition=registry.get(name),
+            definition=registry.get(name), needed_n=needed,
         ))
 
     values: dict[str, list[float]] = {}
@@ -139,6 +153,21 @@ def build_evidence(ledger: Ledger, domain: str, spec: MetricSpec) -> EvidenceSum
                 values.setdefault(k, []).append(float(v))
     dispersion = {k: statistics.stdev(v) for k, v in values.items() if len(v) >= 2}
 
+    # Cost: units consumed by closed experiments per decisive (A/B better) result, so a
+    # proposer can favour hypotheses that resolve quickly over ones that run out the clock.
+    closed = [(e, ledger.final_decision(e.id)) for e in experiments]
+    closed = [(e, d) for e, d in closed if d is not None]
+    decisive = sum(d.outcome in (Outcome.A_BETTER, Outcome.B_BETTER) for _, d in closed)
+    units = sum(len(ledger.observations(e.id)) for e, _ in closed)
+    cost = {
+        "closed_experiments": float(len(closed)),
+        "decisive": float(decisive),
+        "no_detectable_diff": float(sum(d.outcome is Outcome.NO_DETECTABLE_DIFF
+                                        for _, d in closed)),
+        "units": float(units),
+        "units_per_decisive": units / decisive if decisive else None,
+    }
+
     return EvidenceSummary(domain=domain, metric=spec, variables=tuple(evidence),
                            open_experiments=tuple(open_ids), metric_dispersion=dispersion,
-                           data_quality=quality)
+                           data_quality=quality, cost=cost)

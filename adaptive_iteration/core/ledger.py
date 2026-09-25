@@ -12,6 +12,7 @@ Every line is one event with an envelope {"schema": 2, "kind": ..., "recorded_at
 
 Nothing is ever rewritten; state is derived by replaying events. A v0.1 ledger
 (a single JSON array) opens read-only — convert it with adaptive_iteration.migrate.
+Ledger(None) keeps events in memory only (used by replay).
 """
 from __future__ import annotations
 
@@ -36,11 +37,11 @@ class LedgerReadOnlyError(RuntimeError):
 
 
 class Ledger:
-    def __init__(self, path: Path) -> None:
-        self.path = Path(path)
+    def __init__(self, path: Optional[Path]) -> None:
+        self.path = Path(path) if path is not None else None
         self._events: list[dict[str, Any]] = []
         self.read_only = False
-        if self.path.exists():
+        if self.path is not None and self.path.exists():
             text = self.path.read_text(encoding="utf-8")
             if text.lstrip().startswith("["):
                 self.read_only = True
@@ -57,9 +58,10 @@ class Ledger:
                 "adaptive_iteration.migrate.v1_to_v2() before writing"
             )
         event = {"schema": SCHEMA, "kind": kind, "recorded_at": utcnow_iso(), **payload}
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        with self.path.open("a", encoding="utf-8") as f:
-            f.write(json.dumps(event, ensure_ascii=False) + "\n")
+        if self.path is not None:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            with self.path.open("a", encoding="utf-8") as f:
+                f.write(json.dumps(event, ensure_ascii=False) + "\n")
         self._events.append(event)
         return event
 

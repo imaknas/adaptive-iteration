@@ -12,7 +12,7 @@ import statistics
 from dataclasses import dataclass, field
 from enum import Enum
 from statistics import NormalDist
-from typing import Any, Optional, Protocol
+from typing import Any, Literal, Optional, Protocol
 
 from ._stats import t_ppf
 from .metrics import MetricSpec
@@ -140,10 +140,17 @@ class WelchIntervalRule:
     - paired: one-sample t interval on per-pair differences
     - alpha is Bonferroni-split over max_checkpoints, so checking every window
       keeps the experiment-wide false-positive rate at or below alpha.
+
+    superiority decides when one arm "wins":
+    - "significance" (default): the interval excludes 0 and the point estimate is at
+      least min_effect — confidently better, by an amount that looks meaningful
+    - "margin": the whole interval clears min_effect — confidently better by at least
+      min_effect. Stricter; a true effect equal to min_effect is never declared.
     """
     alpha: float = 0.05
     min_n: int = 5
     power: float = 0.8
+    superiority: Literal["significance", "margin"] = "significance"
     name: str = "welch_interval"
 
     def __post_init__(self) -> None:
@@ -151,12 +158,15 @@ class WelchIntervalRule:
             raise ValueError("min_n must be at least 2 (a variance needs two values)")
         if not 0.0 < self.alpha < 1.0:
             raise ValueError("alpha must be in (0, 1)")
+        if self.superiority not in ("significance", "margin"):
+            raise ValueError("superiority must be 'significance' or 'margin'")
 
     def decide(self, a: Sample, b: Sample, spec: MetricSpec, ctx: DecisionContext) -> RuleResult:
         per_check_alpha = self.alpha / ctx.max_checkpoints
         confidence = 1.0 - per_check_alpha
         params = {"alpha": self.alpha, "min_n": self.min_n, "power": self.power,
-                  "per_check_alpha": per_check_alpha, "min_effect": spec.min_effect}
+                  "superiority": self.superiority, "per_check_alpha": per_check_alpha,
+                  "min_effect": spec.min_effect}
         sign = 1.0 if spec.higher_is_better else -1.0
 
         undecided = Outcome.NO_DETECTABLE_DIFF if ctx.is_last else Outcome.INSUFFICIENT
@@ -195,12 +205,16 @@ class WelchIntervalRule:
         rope = spec.min_effect
         common = dict(effect=mean, interval=(lo, hi), confidence=confidence, params=params)
 
-        if lo > rope:
+        bar = rope if self.superiority == "margin" else 0.0
+        big_enough = self.superiority == "margin" or abs(mean) >= rope
+        if lo > bar and big_enough:
             return RuleResult(Outcome.B_BETTER,
-                              f"B better: whole interval [{lo:.3g}, {hi:.3g}] above +{rope:g}", **common)
-        if hi < -rope:
+                              f"B better: effect {mean:+.3g}, interval [{lo:.3g}, {hi:.3g}] "
+                              f"above {bar:+g}", **common)
+        if hi < -bar and big_enough:
             return RuleResult(Outcome.A_BETTER,
-                              f"A better: whole interval [{lo:.3g}, {hi:.3g}] below −{rope:g}", **common)
+                              f"A better: effect {mean:+.3g}, interval [{lo:.3g}, {hi:.3g}] "
+                              f"below {-bar:+g}", **common)
         if -rope <= lo and hi <= rope:
             return RuleResult(Outcome.EQUIVALENT,
                               f"equivalent: interval [{lo:.3g}, {hi:.3g}] within ±{rope:g}", **common)
