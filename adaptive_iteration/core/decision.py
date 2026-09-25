@@ -200,6 +200,12 @@ class WelchIntervalRule:
                 df = n_a + n_b - 2
             per_arm_sd = math.sqrt((var_a + var_b) / 2.0)
 
+        if se == 0:
+            # No variation at all (e.g. a 0/1 metric with no successes in either arm):
+            # the interval collapses to a point and would claim certainty it doesn't have.
+            return RuleResult(undecided, "no variation in the data; interval not estimable",
+                              effect=mean, confidence=confidence, params=params)
+
         half = t_ppf(1.0 - per_check_alpha / 2.0, df) * se
         lo, hi = mean - half, mean + half
         rope = spec.min_effect

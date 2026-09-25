@@ -123,3 +123,11 @@ def test_superiority_modes_differ_at_the_boundary():
         is Outcome.B_BETTER
     assert WelchIntervalRule(superiority="margin").decide(a, b, spec, ctx()).outcome \
         is Outcome.INSUFFICIENT
+
+
+def test_no_variation_is_not_equivalence():
+    # e.g. reply rate with zero replies in both arms: nothing is known yet
+    zeros = sample([0.0] * 8)
+    r = RULE.decide(zeros, zeros, MetricSpec(name="reply", min_effect=0.1), ctx())
+    assert r.outcome is Outcome.INSUFFICIENT
+    assert "no variation" in r.reason
