@@ -249,6 +249,9 @@ _NEXT = {
 
 def _decision_dict(d: Decision, exp: Experiment, cfg: DomainConfig) -> dict[str, Any]:
     out = {k: v for k, v in asdict(d).items() if k != "rule_params"}
+    # the parts of rule_params an agent needs to read the verdict correctly
+    out["stratified"] = d.rule_params.get("stratified")
+    out["dropped_units"] = d.rule_params.get("dropped_units", 0)
     out["outcome"] = d.outcome.value
     out["interval"] = list(d.interval) if d.interval else None
     out["closed"] = d.outcome.is_final

@@ -102,3 +102,17 @@ def test_evidence_reports_cost_and_needed_n(tmp_path):
     assert by["y"].status == "open" and by["y"].needed_n and by["y"].needed_n > 0
     assert ev.cost["decisive"] == 1 and ev.cost["units_per_decisive"] == 16
     assert "Cost of judging" in ev.to_markdown()
+
+
+def test_replay_keeps_strata():
+    # regression: replay() rebuilt observations without their stratum, so a
+    # stratified rule silently ran unstratified during replay
+    start = datetime(2026, 9, 1, tzinfo=timezone.utc)
+    exp = Experiment(domain="d", variable="v", variant_a=Variant("a"), variant_b=Variant("b"),
+                     started=start.isoformat())
+    obs = [Observation("x", label, f"{label}{i}", (start + timedelta(hours=i)).isoformat(),
+                       (start + timedelta(days=60)).isoformat(), {"m": 50.0 + i % 7},
+                       stratum="money" if i % 2 else "other")
+           for i in range(40) for label in ("a", "b")]
+    [d, *_] = replay(exp, obs, SPEC)
+    assert d.rule_params["stratified"] is True

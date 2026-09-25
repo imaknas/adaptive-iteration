@@ -166,7 +166,7 @@ def replay(experiment: Experiment, observations: Sequence[Observation], spec: Me
                 produced_at=obs.produced_at,
                 observed_at=max(produced + maturity, min(at, _parse(obs.observed_at))
                                 ).isoformat(),
-                metrics=obs.metrics, pair_id=obs.pair_id))
+                metrics=obs.metrics, pair_id=obs.pair_id, stratum=obs.stratum))
         kwargs = {"rule": rule} if rule is not None else {}
         evaluator = Evaluator(ledger, window=window, maturity=maturity,
                               max_windows=max_windows, **kwargs)
