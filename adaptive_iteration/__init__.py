@@ -1,12 +1,29 @@
-"""adaptive_iteration — Domain-agnostic adaptive experiment framework.
+"""adaptive_iteration — Domain-agnostic adaptive experimentation framework.
 
-Import paths:
-    from adaptive_iteration.core.experiment import Experiment, Variant, ExperimentState
-    from adaptive_iteration.core.ledger import Ledger
-    from adaptive_iteration.core.analyzer import Analyzer
-    from adaptive_iteration.core.hypothesis import HypothesisEngine
-    from adaptive_iteration.core.config import AdaptiveConfig
-    from adaptive_iteration.adapters.base import DomainAdapter
-    from adaptive_iteration.adapters.short_video import ShortVideoAdapter
+core/ is standard library only. Hypotheses come from a Proposer you inject;
+results are judged by a DecisionRule (default: WelchIntervalRule).
+
+    from adaptive_iteration import (
+        Ledger, Experiment, Variant, MetricSpec, Observation,
+        Evaluator, WelchIntervalRule, Outcome,
+        HypothesisEngine, Proposal, VariableRegistry, VariableDef,
+    )
 """
-__version__ = "0.1.0"
+from .core.decision import Decision, DecisionRule, Outcome, WelchIntervalRule
+from .core.evaluator import Evaluator
+from .core.evidence import EvidenceSummary, VariableEvidence, build_evidence
+from .core.experiment import Experiment, Variant
+from .core.hypothesis import HypothesisEngine, Proposal, Proposer, ReviewedProposal
+from .core.ledger import Ledger
+from .core.metrics import MetricSpec, Observation
+from .core.registry import DuplicateDetector, TokenSetDetector, VariableDef, VariableRegistry
+
+__version__ = "0.2.0"
+
+__all__ = [
+    "Decision", "DecisionRule", "Outcome", "WelchIntervalRule", "Evaluator",
+    "EvidenceSummary", "VariableEvidence", "build_evidence", "Experiment", "Variant",
+    "HypothesisEngine", "Proposal", "Proposer", "ReviewedProposal", "Ledger",
+    "MetricSpec", "Observation", "DuplicateDetector", "TokenSetDetector", "VariableDef",
+    "VariableRegistry",
+]

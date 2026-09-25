@@ -1,154 +1,172 @@
 # adaptive_iteration
 
-**Domain-agnostic adaptive experimentation framework.**
+**Domain-agnostic adaptive experimentation: experiment → measure → judge → propose.**
 
-A lightweight Python framework that abstracts the **experiment → measure → learn → challenge**
-cycle into reusable components. Bring your own domain; the framework handles the rest.
+A small Python framework for running an endless loop of A/B experiments in any
+domain — short videos, emails, proposals — without fooling yourself. It owns the
+parts that should not depend on your domain or your tools:
 
----
+- **Judging results honestly.** Winners are declared from per-unit data with a
+  confidence interval, at fixed weekly checkpoints, with the false-positive rate
+  controlled across repeated looks. Missing or immature data is excluded, never
+  counted as zero. "No difference" and "don't know yet" are different outcomes.
+- **Keeping evidence in one place.** An append-only JSONL ledger holds every
+  observation and every decision, so any verdict can be recomputed later.
+- **Keeping the vocabulary stable.** A variable registry stops the same idea
+  from being tested three times under three names.
 
-## What It Is
-
-```
-adaptive_iteration/
-├── core/               # pure Python stdlib, zero domain deps
-│   ├── experiment.py   # Experiment / Variant dataclasses + ExperimentState
-│   ├── ledger.py       # JSON append-only results ledger
-│   ├── analyzer.py     # top/bottom performer detection, variance per dimension
-│   ├── hypothesis.py   # HypothesisEngine: ledger + analysis → LLM → Experiment candidates
-│   └── config.py       # AdaptiveConfig: JSON config + winner hints
-└── adapters/
-    ├── base.py         # DomainAdapter ABC (3 methods to implement)
-    └── short_video.py  # Example adapter: YouTube + Instagram (simulated data)
-```
+It deliberately does **not** decide where hypotheses come from. You inject a
+`Proposer`: a language model, a parameter grid, a rules engine, or a person.
+`core/` uses the standard library only.
 
 ---
 
-## Installation
+## Install
 
 ```bash
-# with uv (recommended)
-uv add adaptive-iteration
-
-# with pip
-pip install adaptive-iteration
+uv add adaptive-iteration      # or: pip install adaptive-iteration
 ```
 
-Requires Python 3.10+. The only runtime dependency is `openai` (used only in
-`HypothesisEngine`; the rest of `core/` is stdlib-only).
+Python 3.10+. No runtime dependencies.
 
 ---
 
-## Quick Start
+## The loop
 
 ```python
-import os
+from datetime import timedelta
 from pathlib import Path
-from adaptive_iteration.core.ledger import Ledger
-from adaptive_iteration.core.analyzer import Analyzer
-from adaptive_iteration.core.hypothesis import HypothesisEngine
-from adaptive_iteration.core.config import AdaptiveConfig
-
-# 1. Load / create config
-cfg = AdaptiveConfig(Path("data/adaptive_config.json"))
-cfg.update({"domain": "my_domain", "primary_metric": "conversion_rate"})
-
-# 2. Open ledger
-ledger = Ledger(Path("data/adaptive_ledger.json"))
-
-# 3. Record experiment results
-ledger.append(
-    domain="my_domain",
-    experiment_id="exp001",
-    variable="cta_style",
-    variant="soft",
-    metric_values={"conversion_rate": 4.2, "bounce_rate": 31.0},
-    winner=True,
+from adaptive_iteration import (
+    Evaluator, HypothesisEngine, Ledger, MetricSpec, VariableDef, VariableRegistry,
 )
 
-# 4. Analyse
-analyzer = Analyzer(ledger, primary_metric="conversion_rate")
-analysis = analyzer.analyze(domain="my_domain")
-print(f"Top performers: {[p['variant'] for p in analysis.top_performers]}")
-print(f"Winning patterns: {analysis.winning_patterns}")
+ledger = Ledger(Path("data/ledger.jsonl"))
+spec = MetricSpec(name="avg_view_pct", min_effect=3.0)   # smallest difference that matters
 
-# 5. Generate next hypotheses (requires OPENAI_API_KEY)
-engine = HypothesisEngine(
-    ledger=ledger,
-    api_key=os.environ["OPENAI_API_KEY"],
-)
-candidates = engine.generate(domain="my_domain", analysis=analysis)
-for exp in candidates:
-    print(f"  [{exp.tier}] {exp.variable}: {exp.description}")
+# 1. Register the variables you know about (proposers may add more, see below)
+VariableRegistry(ledger, "shorts").register(
+    VariableDef("hook_style", "how the first line grabs attention",
+                execution="script prompt: opening sentence template"))
+
+# 2. Ask your proposer for candidates; the engine reviews them against the registry
+engine = HypothesisEngine(ledger, proposer=my_proposer)
+for r in engine.generate("shorts", spec, n=3):
+    print(r.status, r.variable, r.flags, r.reason)
+experiment = engine.accept(next(r for r in engine.generate("shorts", spec) if r.accepted))
+ledger.start_experiment(experiment.id)
+
+# 3. Produce units, then record what you measure — per unit, not averages
+ledger.record_observations(my_adapter.collect_observations(experiment))
+
+# 4. Judge (safe to call daily; it only decides at weekly checkpoints)
+decision = Evaluator(ledger).evaluate(experiment.id, spec)
+print(decision.outcome, decision.effect, decision.interval, decision.reason)
 ```
+
+`examples/quickstart.py` runs the whole loop on simulated data with no model.
 
 ---
 
-## Integrating a New Domain
+## Judging
 
-Subclass `DomainAdapter` and implement three methods:
+`Evaluator` decides **when** and **which data**; a `DecisionRule` decides **what
+the data says**.
+
+| Setting | Default | Meaning |
+|---|---|---|
+| `window` | 7 days | judge once per window after the experiment starts |
+| `maturity` | 72 hours | a unit counts only if observed this long after it was produced |
+| `max_windows` | 4 | at the 4th checkpoint an undecided experiment closes |
+
+The default rule, `WelchIntervalRule`, builds a confidence interval for the
+difference B − A (Welch t for interleaved experiments, paired t for paired ones)
+and compares it with the region of practical equivalence `±min_effect`:
+
+| Outcome | When |
+|---|---|
+| `B_BETTER` / `A_BETTER` | the whole interval lies beyond `+min_effect` / `−min_effect` |
+| `EQUIVALENT` | the whole interval lies inside `±min_effect` |
+| `INSUFFICIENT` | anything else before the last checkpoint (with an estimate of how many more units are needed) |
+| `NO_DETECTABLE_DIFF` | anything else at the last checkpoint |
+
+Alpha is split across the checkpoints (Bonferroni), so looking every week keeps the
+experiment-wide false-positive rate under 5%. Closing one experiment never stops the
+loop — the next hypothesis is always generated.
+
+To use a different rule (Bayesian, sequential, domain-specific), pass any object
+with `name` and `decide(a, b, spec, ctx) -> RuleResult`:
 
 ```python
-from adaptive_iteration.adapters.base import DomainAdapter
-
-class MyDomainAdapter(DomainAdapter):
-
-    def collect_metrics(self, item_ids: list[str]) -> list[dict]:
-        """Pull raw metrics from your external system for each item_id."""
-        results = []
-        for item_id in item_ids:
-            raw = my_api.get_metrics(item_id)
-            results.append({"id": item_id, **raw})
-        return results
-
-    def get_signals(self, metrics: list[dict]) -> dict:
-        """Normalise to framework signals."""
-        primary = sum(m["conversion_rate"] for m in metrics) / len(metrics)
-        return {
-            "primary_metric": primary,
-            "secondary_metrics": {
-                "bounce_rate": sum(m["bounce_rate"] for m in metrics) / len(metrics),
-            },
-        }
-
-    def format_context(self, top_items, bottom_items) -> str:
-        lines = ["Top performers:"]
-        for item in top_items:
-            lines.append(f"  [{item['id']}] conversion_rate={item.get('conversion_rate')}")
-        lines.append("Bottom performers:")
-        for item in bottom_items:
-            lines.append(f"  [{item['id']}] conversion_rate={item.get('conversion_rate')}")
-        return "\n".join(lines)
-```
-
-See `adapters/short_video.py` for a complete reference implementation.
-
----
-
-## Experiment Modes
-
-| Mode | When to use | Description |
-|------|-------------|-------------|
-| `interleaved` | Tier 2 | Rotate variants across different items; maximises volume |
-| `paired` | Tier 1 | Generate two variants for the same item; cleaner causal inference |
-
-Tier 1 experiments (high-impact variables) should use `paired` mode to eliminate
-confounding factors introduced by item-level differences.
-
----
-
-## Import Verification
-
-```bash
-python3 -c "from adaptive_iteration.core.experiment import Experiment; print('ok')"
+Evaluator(ledger, rule=MyBayesianRule())
 ```
 
 ---
 
-## Design Principles
+## Proposers
 
-1. `core/` has **zero external deps** — pure Python stdlib only (`openai` in `hypothesis.py`
-   is lazy-imported and optional until you call `HypothesisEngine`).
-2. `DomainAdapter` is the **only** layer that touches external systems.
-3. `Ledger` is the **single source of truth** — append-only JSON, no database required.
-4. `HypothesisEngine` uses **structured JSON output** prompting so parsing is deterministic.
+```python
+class Proposer(Protocol):
+    def propose(self, evidence: EvidenceSummary, n: int) -> list[Proposal]: ...
+```
+
+`EvidenceSummary` is plain data: every variable's status (`untested`, `open`,
+`concluded`, `equivalent`, `no_detectable_diff`, `legacy_unverified`), best variant,
+effect and interval, plus the registry, metric dispersion and data-quality counts.
+`evidence.to_markdown()` renders it for a prompt if you want one.
+
+`examples/llm_proposer.py` shows a model-backed proposer that takes any
+`(system, user) -> str` function, so the model, client and prompt stay yours.
+
+### Review
+
+`HypothesisEngine.generate()` reviews each proposal before you see it:
+
+| Status | Meaning |
+|---|---|
+| `known` | uses a registered variable (aliases are normalised to the canonical name) |
+| `merged` | proposed as new, but duplicates a registered variable — mapped onto it |
+| `new` | a genuinely new variable; flagged `needs_execution` if it says nothing about how to run it |
+| `rejected` | unregistered without a definition, or the variable already has an open experiment |
+
+Nothing is written until `accept()`, so unused proposals never pollute the registry.
+The default duplicate check compares name tokens; inject your own
+`DuplicateDetector` for semantic matching, or merge by hand:
+
+```python
+VariableRegistry(ledger, "shorts").merge("intro_visual_style", into="opening_visual_style")
+```
+
+---
+
+## Adapters
+
+The only layer that talks to your systems:
+
+```python
+class DomainAdapter(Protocol):
+    def collect_observations(self, experiment: Experiment) -> list[Observation]: ...
+```
+
+Report unavailable metrics as `None`, never `0`. See `adapters/short_video.py`.
+
+---
+
+## Migrating from 0.1
+
+0.1 ledgers stored per-arm averages and a caller-supplied winner flag, which cannot
+be re-judged. A 0.1 file opens read-only; convert it with:
+
+```python
+from adaptive_iteration.migrate import v1_to_v2
+v1_to_v2(Path("data/adaptive_ledger.json"), Path("data/ledger.jsonl"))
+```
+
+Old results become `legacy_unverified` evidence and their variable names are
+registered. `Analyzer`, `DomainAdapter.get_signals/format_context` and the built-in
+OpenAI call are gone; write a proposer instead.
+
+---
+
+## Design
+
+See `docs/design/v0.2.md`.
