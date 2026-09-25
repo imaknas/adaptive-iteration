@@ -47,7 +47,6 @@ secrets/
 *.swo
 
 # Local editor/assistant config
-.agent-memory/
 .claude/
 CLAUDE.md
 CLAUDE.local.md
