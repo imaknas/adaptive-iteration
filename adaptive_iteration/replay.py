@@ -61,15 +61,19 @@ class Calibration:
 
 def calibrate(pool: Sequence[float], rule: DecisionRule, spec: MetricSpec, *,
               effect: float = 0.0, per_window: int, windows: int = 4, sims: int = 1000,
-              seed: int = 0) -> Calibration:
+              seed: int = 0, pool_b: Optional[Sequence[float]] = None) -> Calibration:
     """Simulate experiments by drawing both arms from *pool* (with replacement),
     shifting arm B by *effect*, and asking *rule* at every weekly checkpoint.
 
     effect is in "B is better" units: it is added to B when higher_is_better,
     subtracted otherwise.
+
+    For metrics a shift would break (0/1 outcomes), pass *pool_b* instead: B is drawn
+    from it unshifted, and *effect* is only the label used to score the result
+    (the true B − A difference, e.g. 0.10 for 20% vs 30%).
     """
-    if len(pool) < 2:
-        raise ValueError("pool needs at least two values")
+    if len(pool) < 2 or (pool_b is not None and len(pool_b) < 2):
+        raise ValueError("pools need at least two values")
     rng = random.Random(seed)
     shift = effect if spec.higher_is_better else -effect
     counts: Counter[str] = Counter()
@@ -81,7 +85,10 @@ def calibrate(pool: Sequence[float], rule: DecisionRule, spec: MetricSpec, *,
         outcome = Outcome.INSUFFICIENT
         for k in range(1, windows + 1):
             a += rng.choices(pool, k=per_window)
-            b += [v + shift for v in rng.choices(pool, k=per_window)]
+            if pool_b is None:
+                b += [v + shift for v in rng.choices(pool, k=per_window)]
+            else:
+                b += rng.choices(pool_b, k=per_window)
             ctx = DecisionContext("calibration", paired=False, checkpoint=k,
                                   max_checkpoints=windows)
             outcome = rule.decide(Sample(tuple(a)), Sample(tuple(b)), spec, ctx).outcome

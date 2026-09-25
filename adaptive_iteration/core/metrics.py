@@ -47,6 +47,9 @@ class Observation:
     produced_at : when the unit went out — maturity is measured from here
     observed_at : when these metric values were read
     metrics     : None means "no data", never zero. Adapters must not fill gaps with 0.
+    pair_id     : paired experiments — the two units made from the same input
+    stratum     : optional group the unit belongs to (e.g. topic category); rules that
+                  support it compare arms within each stratum to remove mix effects
 
     A unit may be observed several times as its metrics mature; the latest
     observation per (experiment_id, unit_id) wins.
@@ -58,6 +61,7 @@ class Observation:
     observed_at: str
     metrics: dict[str, Optional[float]] = field(default_factory=dict)
     pair_id: Optional[str] = None
+    stratum: Optional[str] = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -68,6 +72,7 @@ class Observation:
             "observed_at": self.observed_at,
             "metrics": dict(self.metrics),
             "pair_id": self.pair_id,
+            "stratum": self.stratum,
         }
 
     @classmethod
@@ -80,4 +85,5 @@ class Observation:
             observed_at=d["observed_at"],
             metrics=dict(d.get("metrics", {})),
             pair_id=d.get("pair_id"),
+            stratum=d.get("stratum"),
         )

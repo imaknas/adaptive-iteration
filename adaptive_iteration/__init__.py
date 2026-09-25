@@ -9,7 +9,13 @@ results are judged by a DecisionRule (default: WelchIntervalRule).
         HypothesisEngine, Proposal, VariableRegistry, VariableDef,
     )
 """
-from .core.decision import Decision, DecisionRule, Outcome, WelchIntervalRule
+from .core.decision import (
+    Decision,
+    DecisionRule,
+    Outcome,
+    ProportionIntervalRule,
+    WelchIntervalRule,
+)
 from .core.evaluator import Evaluator
 from .core.evidence import EvidenceSummary, VariableEvidence, build_evidence
 from .core.experiment import Experiment, Variant
@@ -18,10 +24,10 @@ from .core.ledger import Ledger
 from .core.metrics import MetricSpec, Observation
 from .core.registry import DuplicateDetector, TokenSetDetector, VariableDef, VariableRegistry
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 
 __all__ = [
-    "Decision", "DecisionRule", "Outcome", "WelchIntervalRule", "Evaluator",
+    "Decision", "DecisionRule", "Outcome", "ProportionIntervalRule", "WelchIntervalRule", "Evaluator",
     "EvidenceSummary", "VariableEvidence", "build_evidence", "Experiment", "Variant",
     "HypothesisEngine", "Proposal", "Proposer", "ReviewedProposal", "Ledger",
     "MetricSpec", "Observation", "DuplicateDetector", "TokenSetDetector", "VariableDef",

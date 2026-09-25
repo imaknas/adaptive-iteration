@@ -113,7 +113,8 @@ class Evaluator:
         def to_sample(obs_list: list[Observation]) -> Sample:
             return Sample(values=tuple(float(o.metrics[spec.name]) for o in obs_list),
                           unit_ids=tuple(o.unit_id for o in obs_list),
-                          pair_ids=tuple(o.pair_id for o in obs_list))
+                          pair_ids=tuple(o.pair_id for o in obs_list),
+                          strata=tuple(o.stratum for o in obs_list))
 
         return to_sample(arms[label_a]), to_sample(arms[label_b]), excluded
 

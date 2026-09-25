@@ -15,6 +15,9 @@ parts that should not depend on your domain or your tools:
 - **Keeping the vocabulary stable.** A variable registry stops the same idea
   from being tested three times under three names.
 
+**New here? Start with the [tutorial](docs/tutorial.md)**: a complete first
+experiment, explained for someone who has never used the framework.
+
 It deliberately does **not** decide where hypotheses come from. You inject a
 `Proposer`: a language model, a parameter grid, a rules engine, or a person.
 `core/` uses the standard library only.
@@ -98,6 +101,20 @@ Alpha is split across the checkpoints (Bonferroni), so looking every week keeps 
 experiment-wide false-positive rate under 5%. Closing one experiment never stops the
 loop — the next hypothesis is always generated.
 
+**0/1 metrics** (replied, clicked, converted) should use `ProportionIntervalRule`,
+which builds Newcombe's interval for the difference in proportions. It stays honest
+when events are rare: zero successes in both arms gives a wide interval, not a
+false "equivalent".
+
+```python
+Evaluator(ledger, rule=ProportionIntervalRule())
+```
+
+**Groups of units** that differ a lot on their own (topics, audience segments) can
+be tagged with `Observation(..., stratum="money")`. `WelchIntervalRule` then
+compares the arms within each group and combines the results, so an uneven mix of
+groups between the arms cannot pose as an effect.
+
 To use a different rule (Bayesian, sequential, domain-specific), pass any object
 with `name` and `decide(a, b, spec, ctx) -> RuleResult`:
 
@@ -126,6 +143,10 @@ calibrate(pool, WelchIntervalRule(), spec, effect=10, per_window=20)
 
 # Adopt only if false positives stay ≤ 5% and detection is not worse
 gate(candidate_rule, current_rule, pool, spec, effects=(5, 10, 20), per_window=20)
+
+# 0/1 metrics can't be shifted: give B its own pool instead
+calibrate(clicks, ProportionIntervalRule(), spec, effect=0.05, pool_b=clicks_plus_5,
+          per_window=200)
 
 # What would the Evaluator have said, week by week, on a recorded experiment?
 replay(experiment, observations, spec, rule=candidate_rule)
