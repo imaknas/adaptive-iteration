@@ -87,3 +87,33 @@ def test_evidence_reports_corrected_effects_without_changing_verdicts(tmp_path):
         assert v.status in ("concluded", "no_detectable_diff")          # verdicts as recorded
         assert abs(v.shrunk_effect) <= abs(final.effect) + 1e-12       # only ever pulled in
     assert "corrected" in ev.to_markdown()
+
+
+def test_best_of_many_small_samples_is_corrected_without_overshooting():
+    """Pick the best of 28 strategies, each measured on only 8 pairs. Rules record their
+    own se; backing it out of a small-sample t interval instead over-shrank by ~20%."""
+    from adaptive_iteration import DecisionContext, Sample, WelchIntervalRule
+    rng = random.Random(0)
+    ctx = DecisionContext("b", paired=True, checkpoint=1, max_checkpoints=1)
+    spec = MetricSpec("s", min_effect=2.0)
+    measured, corrected, true = [], [], []
+    for _ in range(150):
+        results, truths = [], []
+        for _ in range(28):
+            g = rng.gauss(0, 4.0)
+            ids = tuple(str(i) for i in range(8))
+            base = [rng.gauss(0, 8.0) for _ in ids]
+            new = [x + g + rng.gauss(0, 8.0) for x in base]
+            results.append(WelchIntervalRule().decide(Sample(tuple(base), pair_ids=ids),
+                                                      Sample(tuple(new), pair_ids=ids), spec, ctx))
+            truths.append(g)
+        prior = estimate_prior(results)
+        i = max(range(28), key=lambda k: results[k].effect)
+        assert results[i].se is not None
+        measured.append(results[i].effect)
+        corrected.append(prior.shrink(results[i].effect, approx_se(results[i])))
+        true.append(truths[i])
+    bias_raw = statistics.fmean(measured) - statistics.fmean(true)
+    bias_corrected = statistics.fmean(corrected) - statistics.fmean(true)
+    assert bias_raw > 2.0
+    assert abs(bias_corrected) < 0.6

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import math
 import statistics
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from enum import Enum
 from statistics import NormalDist
 from typing import Any, Literal, Optional, Protocol
@@ -67,6 +67,7 @@ class RuleResult:
     confidence: Optional[float] = None
     needed_n: Optional[int] = None
     params: dict[str, Any] = field(default_factory=dict)
+    se: Optional[float] = None       # standard error of effect, when the rule knows it
 
 
 class DecisionRule(Protocol):
@@ -94,6 +95,7 @@ class Decision:
     interval: Optional[tuple[float, float]] = None
     confidence: Optional[float] = None
     needed_n: Optional[int] = None
+    se: Optional[float] = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -112,6 +114,7 @@ class Decision:
             "interval": list(self.interval) if self.interval else None,
             "confidence": self.confidence,
             "needed_n": self.needed_n,
+            "se": self.se,
         }
 
     @classmethod
@@ -132,6 +135,7 @@ class Decision:
             interval=tuple(d["interval"]) if d.get("interval") else None,
             confidence=d.get("confidence"),
             needed_n=d.get("needed_n"),
+            se=d.get("se"),
         )
 
 
@@ -277,8 +281,9 @@ class WelchIntervalRule:
         needed = _needed_per_arm(per_arm_sd, spec.min_effect, per_check_alpha, self.power,
                                  paired=ctx.paired)
         more = max(0, needed - have) if needed is not None else None
-        return _classify(mean, lo, hi, spec.min_effect, self.superiority,
-                         ctx, more, confidence, params, note)
+        result = _classify(mean, lo, hi, spec.min_effect, self.superiority,
+                           ctx, more, confidence, params, note)
+        return replace(result, se=se)
 
 
 @dataclass(frozen=True)

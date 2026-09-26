@@ -83,6 +83,7 @@ class Evaluator:
                          "max_windows": self.max_windows, "metric_spec": spec.to_dict()},
             reason=result.reason, decided_at=now.isoformat(), effect=result.effect,
             interval=result.interval, confidence=result.confidence, needed_n=result.needed_n,
+            se=result.se,
         )
         self.ledger.record_decision(decision)
         return decision

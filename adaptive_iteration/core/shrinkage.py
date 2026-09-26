@@ -31,8 +31,13 @@ MIN_EXPERIMENTS = 5
 
 
 def approx_se(decision: Decision) -> Optional[float]:
-    """Standard error implied by a decision's interval (normal approximation; for
-    small-sample t intervals it errs slightly large, i.e. toward more shrinkage)."""
+    """The rule's own standard error when it recorded one (WelchIntervalRule does);
+    otherwise the one implied by the interval under a normal approximation. For a
+    small-sample t interval that would be too large (about 20% at 8 pairs) and would
+    over-shrink, which is why rules that know their se should record it."""
+    se = getattr(decision, "se", None)
+    if se:
+        return se
     if decision.interval is None or decision.confidence is None:
         return None
     lo, hi = decision.interval
