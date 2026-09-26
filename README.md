@@ -123,6 +123,14 @@ A copy of the ledger file plus `apply` as a no-op and a proposer that returns `[
 runs the loop in **shadow**: it judges and reports what it would apply, and changes
 nothing.
 
+**Winner's-curse correction.** The experiments that get declared winners are
+disproportionately the ones noise happened to push upward, so their measured
+effects overstate the truth. Once a domain has five or more closed experiments,
+`evidence()` also reports a *corrected* effect for each: the measured one pulled
+toward zero by how noisy it is (empirical Bayes, with the spread of true effects
+estimated from the domain's own history). In simulation, declared winners measured
++8.2 on average against a true +5.2; corrected, +5.3. Verdicts are never changed.
+
 Nobody can know in advance whether a hypothesis is right, but a proposer's record
 shows over time. `evidence()` keeps one per proposer: how its experiments ended, what
 they cost, and how its expected effects compared with what was measured.

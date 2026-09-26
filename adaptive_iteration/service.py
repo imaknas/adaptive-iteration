@@ -30,6 +30,7 @@ from .core.lifecycle import restart as _restart
 from .core.metrics import MetricSpec, Observation
 from .core.registry import VariableDef, VariableRegistry
 from .core.screening import Screening
+from .core.shrinkage import approx_se, estimate_prior
 from .replay import calibrate as _calibrate
 
 PathLike = Union[str, Path]
@@ -315,8 +316,13 @@ def evaluate(ledger: PathLike, experiment_id: Optional[str] = None, *,
         if cfg is None:
             raise ServiceError(f"domain {exp.domain!r} is not configured; call configure")
         d = cfg.build_evaluator(led).evaluate(exp.id, cfg.metric, now=at)
-        results.append({"experiment": _experiment_dict(led, exp),
-                        "decision": _decision_dict(d, exp, cfg)})
+        decision = _decision_dict(d, exp, cfg)
+        prior = estimate_prior(fd for fd in (led.final_decision(e.id)
+                                             for e in led.experiments(exp.domain))
+                               if fd is not None)
+        # the measured effect, pulled toward 0 for the winner's curse; verdict unchanged
+        decision["corrected_effect"] = prior.shrink(d.effect, approx_se(d))
+        results.append({"experiment": _experiment_dict(led, exp), "decision": decision})
     return results
 
 
@@ -332,13 +338,14 @@ def evidence(ledger: PathLike, domain: str, fmt: str = "json") -> Any:
                        "best_variant": v.best_variant, "effect": v.effect,
                        "interval": list(v.interval) if v.interval else None,
                        "n_observations": v.n_observations, "needed_n": v.needed_n,
+                       "corrected_effect": v.shrunk_effect,
                        "experiments": list(v.experiments),
                        "description": v.definition.description if v.definition else None,
                        "execution": v.definition.execution if v.definition else None}
                       for v in ev.variables],
         "open_experiments": list(ev.open_experiments),
         "metric_dispersion": ev.metric_dispersion, "data_quality": ev.data_quality,
-        "cost": ev.cost, "proposers": ev.proposers,
+        "cost": ev.cost, "proposers": ev.proposers, "winners_curse": ev.shrinkage,
     }
 
 

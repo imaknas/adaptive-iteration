@@ -14,6 +14,7 @@ from .decision import Outcome
 from .ledger import Ledger
 from .metrics import MetricSpec
 from .registry import VariableDef, VariableRegistry
+from .shrinkage import Prior, approx_se, estimate_prior
 
 Status = Literal["untested", "open", "concluded", "equivalent", "no_detectable_diff",
                  "abandoned", "legacy_unverified"]
@@ -30,6 +31,7 @@ class VariableEvidence:
     experiments: tuple[str, ...]
     definition: Optional[VariableDef] = None
     needed_n: Optional[int] = None   # open experiments: latest estimate of units still needed per arm
+    shrunk_effect: Optional[float] = None  # effect corrected for the winner's curse (shrinkage.py)
 
 
 @dataclass(frozen=True)
@@ -42,6 +44,7 @@ class EvidenceSummary:
     data_quality: dict[str, int]
     cost: dict[str, Optional[float]]   # what judging has cost so far, see build_evidence()
     proposers: dict[str, dict[str, Optional[float]]] = field(default_factory=dict)
+    shrinkage: dict[str, object] = field(default_factory=dict)
 
     def to_markdown(self) -> str:
         lines = [f"# Evidence — {self.domain}",
@@ -54,6 +57,8 @@ class EvidenceSummary:
             eff = "" if v.effect is None else f"{v.effect:+.3g}"
             if v.interval:
                 eff += f" [{v.interval[0]:.3g}, {v.interval[1]:.3g}]"
+            if v.shrunk_effect is not None:
+                eff += f" → {v.shrunk_effect:+.3g} corrected"
             need = "" if v.needed_n is None else str(v.needed_n)
             lines.append(f"| {v.variable} | {v.status} | {v.best_variant or ''} | {eff} "
                          f"| {v.n_observations} | {need} |")
@@ -75,6 +80,11 @@ class EvidenceSummary:
                       f"{c['decisive']:g}, no detectable difference: {c['no_detectable_diff']:g}",
                       f"- units per decisive result: {per:.0f}" if per is not None
                       else "- units per decisive result: (no decisive result yet)"]
+        if self.shrinkage:
+            lines += ["", "## Winner's-curse correction",
+                      f"- {self.shrinkage['basis']}",
+                      "- \"corrected\" effects pull each measured effect toward 0 by how noisy "
+                      "it is; verdicts are unchanged"]
         if self.proposers:
             lines += ["", "## Proposer track record",
                       "| proposer | proposed | closed | challenger won | control won | "
@@ -113,6 +123,8 @@ def build_evidence(ledger: Ledger, domain: str, spec: MetricSpec) -> EvidenceSum
         v = canonical(r.get("variable") or "")
         legacy_by_var[v] = legacy_by_var.get(v, 0) + 1
 
+    prior = estimate_prior(d for d in (ledger.final_decision(e.id) for e in experiments)
+                           if d is not None)
     names = set(by_var) | set(legacy_by_var) | {d.name for d in registry.variables()}
     open_ids: list[str] = []
     evidence: list[VariableEvidence] = []
@@ -124,7 +136,7 @@ def build_evidence(ledger: Ledger, domain: str, spec: MetricSpec) -> EvidenceSum
         finals = [(ledger.final_decision(e.id), e) for e in exps]
         finals = [(d, e) for d, e in finals if d is not None]
         status: Status
-        best = effect = interval = needed = None
+        best = effect = interval = needed = shrunk = None
         if still_open:
             status = "open"
             latest = [d for e_id in still_open for d in ledger.decisions(e_id)]
@@ -134,6 +146,7 @@ def build_evidence(ledger: Ledger, domain: str, spec: MetricSpec) -> EvidenceSum
             d, e = max(finals, key=lambda de: de[0].decided_at)
             status = _STATUS_BY_OUTCOME[d.outcome]
             effect, interval = d.effect, d.interval
+            shrunk = prior.shrink(d.effect, approx_se(d))
             if d.outcome is Outcome.B_BETTER:
                 best = e.variant_b.label
             elif d.outcome is Outcome.A_BETTER:
@@ -148,7 +161,7 @@ def build_evidence(ledger: Ledger, domain: str, spec: MetricSpec) -> EvidenceSum
         evidence.append(VariableEvidence(
             variable=name, status=status, best_variant=best, effect=effect, interval=interval,
             n_observations=n_obs, experiments=tuple(e.id for e in exps),
-            definition=registry.get(name), needed_n=needed,
+            definition=registry.get(name), needed_n=needed, shrunk_effect=shrunk,
         ))
 
     values: dict[str, list[float]] = {}
@@ -185,10 +198,13 @@ def build_evidence(ledger: Ledger, domain: str, spec: MetricSpec) -> EvidenceSum
     return EvidenceSummary(domain=domain, metric=spec, variables=tuple(evidence),
                            open_experiments=tuple(open_ids), metric_dispersion=dispersion,
                            data_quality=quality, cost=cost,
-                           proposers=_track_record(ledger, experiments))
+                           proposers=_track_record(ledger, experiments, prior),
+                           shrinkage={"tau": prior.tau, "n_experiments": prior.n_experiments,
+                                      "basis": prior.basis})
 
 
-def _track_record(ledger: Ledger, experiments: list) -> dict[str, dict[str, Optional[float]]]:
+def _track_record(ledger: Ledger, experiments: list,
+                  prior: Prior) -> dict[str, dict[str, Optional[float]]]:
     """Per proposer: how its experiments ended, what they cost, and how its expected
     effects compared with what was measured (median of realised ÷ expected)."""
     groups: dict[str, list] = {}
@@ -204,6 +220,9 @@ def _track_record(ledger: Ledger, experiments: list) -> dict[str, dict[str, Opti
         units = sum(len(ledger.observations(e.id)) for e, _ in closed)
         ratios = [d.effect / e.expected_effect for e, d in closed
                   if e.expected_effect and d.effect is not None]
+        shrunk = [(prior.shrink(d.effect, approx_se(d)), e.expected_effect) for e, d in closed
+                  if e.expected_effect and d.effect is not None]
+        shrunk_ratios = [s / x for s, x in shrunk if s is not None]
         out[name] = {
             "proposed": float(len(exps)), "closed": float(len(closed)),
             "challenger_won": float(b_won), "control_won": float(a_won),
@@ -211,5 +230,7 @@ def _track_record(ledger: Ledger, experiments: list) -> dict[str, dict[str, Opti
             "abandoned": float(abandoned),
             "units_per_decisive": units / (a_won + b_won) if a_won + b_won else None,
             "effect_ratio": statistics.median(ratios) if ratios else None,
+            "corrected_effect_ratio": (statistics.median(shrunk_ratios)
+                                       if shrunk_ratios else None),
         }
     return out

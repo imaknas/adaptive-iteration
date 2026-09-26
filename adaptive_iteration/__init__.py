@@ -32,7 +32,7 @@ from .core.registry import DuplicateDetector, TokenSetDetector, VariableDef, Var
 from .core.screening import Screening, estimate_capacity
 from .loop import Assignment, Loop, TickReport
 
-__version__ = "0.8.0"
+__version__ = "0.9.0"
 
 __all__ = [
     "Decision", "DecisionContext", "DecisionRule", "Outcome", "PairedProportionRule",
