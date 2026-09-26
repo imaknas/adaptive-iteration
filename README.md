@@ -25,7 +25,9 @@ on interim numbers, no moving the goalposts mid-experiment). See
 
 It deliberately does **not** decide where hypotheses come from. You inject a
 `Proposer`: a language model, a parameter grid, a rules engine, or a person.
-`core/` uses the standard library only.
+Standard statistics (t distribution, Welch intervals) come from scipy; the few
+methods no library provides are implemented here and checked against published
+examples and simulated coverage.
 
 ---
 
@@ -35,7 +37,7 @@ It deliberately does **not** decide where hypotheses come from. You inject a
 uv add adaptive-iteration      # or: pip install adaptive-iteration
 ```
 
-Python 3.10+. No runtime dependencies. For the MCP server:
+Python 3.10+. Depends on scipy. For the MCP server:
 `pip install "adaptive-iteration[mcp]"`.
 
 ---

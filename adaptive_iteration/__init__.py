@@ -1,6 +1,6 @@
 """adaptive_iteration — Domain-agnostic adaptive experimentation framework.
 
-core/ is standard library only. Hypotheses come from a Proposer you inject;
+Statistics come from scipy where it has them. Hypotheses come from a Proposer you inject;
 results are judged by a DecisionRule (default: WelchIntervalRule).
 
     from adaptive_iteration import (
@@ -28,7 +28,7 @@ from .core.ledger import Ledger
 from .core.metrics import MetricSpec, Observation
 from .core.registry import DuplicateDetector, TokenSetDetector, VariableDef, VariableRegistry
 
-__version__ = "0.5.0"
+__version__ = "0.6.0"
 
 __all__ = [
     "Decision", "DecisionContext", "DecisionRule", "Outcome", "PairedProportionRule",

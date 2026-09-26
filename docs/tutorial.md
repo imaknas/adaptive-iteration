@@ -55,7 +55,7 @@ Every verdict is one of five **outcomes**:
 uv add adaptive-iteration      # or: pip install adaptive-iteration
 ```
 
-No other dependencies. Nothing here calls a language model unless you make it.
+The only dependency is scipy. Nothing here calls a language model unless you make it.
 
 ---
 

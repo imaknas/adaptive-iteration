@@ -14,7 +14,8 @@ from enum import Enum
 from statistics import NormalDist
 from typing import Any, Literal, Optional, Protocol
 
-from ._stats import t_ppf
+from scipy import stats as _scipy_stats
+
 from .metrics import MetricSpec
 
 
@@ -175,8 +176,8 @@ def _classify(mean: float, lo: float, hi: float, rope: float, superiority: str,
 class WelchIntervalRule:
     """Default rule: confidence interval for mean(B) − mean(A) compared with ±min_effect.
 
-    - interleaved: Welch t interval (unequal variances)
-    - paired: one-sample t interval on per-pair differences
+    - interleaved: Welch t interval (unequal variances), computed by scipy
+    - paired: one-sample t interval on per-pair differences, computed by scipy
     - stratified (units carry a stratum, e.g. topic): the effect is estimated within
       each stratum and averaged by stratum size, so an uneven mix of strata between
       the arms cannot masquerade as an effect. Strata missing one arm are left out.
@@ -221,7 +222,9 @@ class WelchIntervalRule:
                 return too_few(f"{n} complete pairs < min_n={self.min_n}", n)
             mean = statistics.fmean(diffs) * sign
             sd = statistics.stdev(diffs)
-            se, df, per_arm_sd, have = sd / math.sqrt(n), n - 1, sd, n
+            se, per_arm_sd, have = sd / math.sqrt(n), sd, n
+            interval = lambda: _scipy_stats.ttest_1samp(  # noqa: E731
+                diffs, 0.0).confidence_interval(confidence)
         elif self.stratify and any(s is not None for s in (*a.strata, *b.strata)):
             est = _stratified(a, b)
             params["stratified"] = True
@@ -233,8 +236,12 @@ class WelchIntervalRule:
                 return too_few(f"n_a={est.n_a}, n_b={est.n_b} in strata with both arms; "
                                f"each arm needs ≥ min_n={self.min_n}{note}",
                                min(est.n_a, est.n_b))
-            mean, se, df = est.effect * sign, est.se, est.df
+            mean, se = est.effect * sign, est.se
             per_arm_sd, have = est.sd, min(est.n_a, est.n_b)
+
+            def interval():  # post-stratified estimator: only the t quantile is scipy's
+                half = _scipy_stats.t.ppf(1.0 - per_check_alpha / 2.0, est.df) * est.se
+                return (est.effect - half, est.effect + half)
         else:
             n_a, n_b = len(a), len(b)
             if min(n_a, n_b) < self.min_n:
@@ -242,13 +249,10 @@ class WelchIntervalRule:
                                min(n_a, n_b))
             var_a, var_b = statistics.variance(a.values), statistics.variance(b.values)
             mean = (statistics.fmean(b.values) - statistics.fmean(a.values)) * sign
-            se2 = var_a / n_a + var_b / n_b
-            se = math.sqrt(se2)
-            if se2 > 0:
-                df = se2 ** 2 / ((var_a / n_a) ** 2 / (n_a - 1) + (var_b / n_b) ** 2 / (n_b - 1))
-            else:
-                df = n_a + n_b - 2
+            se = math.sqrt(var_a / n_a + var_b / n_b)
             per_arm_sd, have = math.sqrt((var_a + var_b) / 2.0), min(n_a, n_b)
+            interval = lambda: _scipy_stats.ttest_ind(  # noqa: E731
+                b.values, a.values, equal_var=False).confidence_interval(confidence)
 
         if se == 0:
             # No variation at all (e.g. a 0/1 metric with no successes in either arm):
@@ -256,11 +260,13 @@ class WelchIntervalRule:
             return RuleResult(undecided, "no variation in the data; interval not estimable",
                               effect=mean, confidence=confidence, params=params)
 
-        half = t_ppf(1.0 - per_check_alpha / 2.0, df) * se
+        lo, hi = (float(x) for x in interval())       # interval for B − A, raw units
+        if sign < 0:
+            lo, hi = -hi, -lo
         needed = _needed_per_arm(per_arm_sd, spec.min_effect, per_check_alpha, self.power,
                                  paired=ctx.paired)
         more = max(0, needed - have) if needed is not None else None
-        return _classify(mean, mean - half, mean + half, spec.min_effect, self.superiority,
+        return _classify(mean, lo, hi, spec.min_effect, self.superiority,
                          ctx, more, confidence, params, note)
 
 
