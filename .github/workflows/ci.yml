@@ -19,3 +19,16 @@ jobs:
       - run: uv sync --locked --all-extras
       - run: uv run ruff check .
       - run: uv run pytest -q
+
+  commits:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Commit messages follow Conventional Commits
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: python3 .github/scripts/check_commits.py
