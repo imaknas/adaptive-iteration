@@ -33,11 +33,12 @@ class Outcome(str, Enum):
 
 @dataclass(frozen=True)
 class Sample:
-    """Valid, mature values for one arm. pair_ids and strata align with values."""
+    """Valid, mature values for one arm. pair_ids, strata and covariates align with values."""
     values: tuple[float, ...]
     unit_ids: tuple[str, ...] = ()
     pair_ids: tuple[Optional[str], ...] = ()
     strata: tuple[Optional[str], ...] = ()
+    covariates: tuple[Optional[float], ...] = ()
 
     def __len__(self) -> int:
         return len(self.values)
@@ -182,6 +183,11 @@ class WelchIntervalRule:
       each stratum and averaged by stratum size, so an uneven mix of strata between
       the arms cannot masquerade as an effect. Strata missing one arm are left out.
       Uses a pooled within-stratum variance (assumes similar spread across strata).
+    - covariate-adjusted (CUPED; units carry a covariate known before assignment):
+      the part of each value the covariate predicts is removed before comparing,
+      which shrinks the noise by about the squared correlation. Interleaved only;
+      skipped (with the reason in params["cuped"]) if any unit lacks a covariate or
+      the covariate differs between arms more than randomisation allows.
     - alpha is Bonferroni-split over max_checkpoints, so checking every window
       keeps the experiment-wide false-positive rate at or below alpha.
 
@@ -196,6 +202,7 @@ class WelchIntervalRule:
     power: float = 0.8
     superiority: Literal["significance", "margin"] = "significance"
     stratify: bool = True
+    adjust: bool = True
     name: str = "welch_interval"
 
     def __post_init__(self) -> None:
@@ -214,6 +221,10 @@ class WelchIntervalRule:
         def too_few(msg: str, have: int) -> RuleResult:
             return RuleResult(undecided, msg, confidence=confidence, params=params,
                               needed_n=self.min_n - have)
+
+        if self.adjust and not ctx.paired:
+            a, b, cuped_note = _cuped(a, b, params)
+            note += cuped_note
 
         if ctx.paired:
             diffs = _paired_diffs(a, b)
@@ -480,6 +491,54 @@ def _stratified(a: Sample, b: Sample) -> _StratifiedEstimate:
     sigma2 = ss / df
     return _StratifiedEstimate(effect, math.sqrt(sigma2 * var_factor), df, math.sqrt(sigma2),
                                n_a, n_b, len(shared), dropped)
+
+
+BALANCE_T = 4.0   # |t| beyond this is implausible under randomisation
+
+
+def _cuped(a: Sample, b: Sample, params: dict[str, Any]) -> tuple[Sample, Sample, str]:
+    """Remove the covariate-predicted part of each value (Deng et al. 2013).
+
+    theta = cov(X, Y) / var(X) over all units, pooled across arms (valid because
+    the covariate is fixed before assignment); Y' = Y − theta·(X − mean X).
+    """
+    if not a.covariates and not b.covariates:
+        return a, b, ""
+    xs_a, xs_b = list(a.covariates), list(b.covariates)
+    if (len(xs_a) != len(a.values) or len(xs_b) != len(b.values)
+            or any(x is None for x in (*xs_a, *xs_b))):
+        missing = sum(x is None for x in (*xs_a, *xs_b))
+        params["cuped"] = {"applied": False, "reason": f"{missing} units lack a covariate"}
+        return a, b, "; covariate adjustment skipped (missing covariates)"
+    if min(len(xs_a), len(xs_b)) < 2:
+        return a, b, ""
+    va, vb = statistics.variance(xs_a), statistics.variance(xs_b)
+    se = math.sqrt(va / len(xs_a) + vb / len(xs_b))
+    if se > 0:
+        t = (statistics.fmean(xs_b) - statistics.fmean(xs_a)) / se
+        if abs(t) > BALANCE_T:
+            params["cuped"] = {"applied": False, "balance_t": t,
+                               "reason": "covariate differs between arms; it may have been "
+                                         "affected by the variant"}
+            return a, b, "; covariate adjustment skipped (covariate imbalanced between arms)"
+    xs = xs_a + xs_b
+    ys = list(a.values) + list(b.values)
+    var_x = statistics.variance(xs)
+    if var_x == 0:
+        return a, b, ""
+    theta = statistics.covariance(xs, ys) / var_x
+    mean_x = statistics.fmean(xs)
+
+    def adjusted(s: Sample, xs_arm: list) -> Sample:
+        return Sample(tuple(y - theta * (x - mean_x) for y, x in zip(s.values, xs_arm)),
+                      s.unit_ids, s.pair_ids, s.strata, s.covariates)
+
+    a2, b2 = adjusted(a, xs_a), adjusted(b, xs_b)
+    raw_var = statistics.variance(ys)
+    adj_var = statistics.variance(list(a2.values) + list(b2.values))
+    reduction = 1 - adj_var / raw_var if raw_var > 0 else 0.0
+    params["cuped"] = {"applied": True, "theta": theta, "variance_reduction": reduction}
+    return a2, b2, f"; covariate-adjusted (noise variance −{reduction:.0%})"
 
 
 def _paired_diffs(a: Sample, b: Sample) -> list[float]:

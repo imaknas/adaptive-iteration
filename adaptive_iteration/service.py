@@ -217,6 +217,14 @@ def _experiment_dict(led: Ledger, exp: Experiment) -> dict[str, Any]:
 
 # ── Data ──────────────────────────────────────────────────────────────────────
 
+def _covariate(v: Any) -> Optional[float]:
+    if v is None:
+        return None
+    if not isinstance(v, (int, float)) or isinstance(v, bool):
+        raise ServiceError("covariate must be a number or null")
+    return float(v)
+
+
 def record_observations(ledger: PathLike, observations: list[dict[str, Any]]
                         ) -> dict[str, Any]:
     """Record one row per unit. All rows are validated first; if any is invalid,
@@ -248,7 +256,8 @@ def record_observations(ledger: PathLike, observations: list[dict[str, Any]]
                 experiment_id=exp.id, variant=row["variant"], unit_id=str(row["unit_id"]),
                 produced_at=row["produced_at"], observed_at=row.get("observed_at") or now,
                 metrics={k: (None if v is None else float(v)) for k, v in metrics.items()},
-                pair_id=row.get("pair_id"), stratum=row.get("stratum")))
+                pair_id=row.get("pair_id"), stratum=row.get("stratum"),
+                covariate=_covariate(row.get("covariate"))))
         except (KeyError, ServiceError, ValueError, TypeError) as e:
             msg = f"missing field {e}" if isinstance(e, KeyError) else str(e)
             errors.append(f"row {i}: {msg}")

@@ -210,6 +210,17 @@ print(r.outcome, r.effect, r.interval, r.reason)
 `max_checkpoints=1` means the full alpha is spent on this single look. If you will
 look again after adding more data, set it to the total number of looks you plan.
 
+**A predictor known in advance** (CUPED). If each unit comes with a number known
+*before* its variant was assigned that predicts the metric (a topic's historical
+average, a baseline model's score on the same item), pass it as
+`Observation(..., covariate=...)`. `WelchIntervalRule` removes the part of each value
+the covariate predicts before comparing, which cuts the noise by about the squared
+correlation: with a correlation of 0.7, a true effect that was detected 58% of the
+time was detected 86% of the time on the same data, with false positives still
+under 5%. The adjustment is skipped, and the verdict says why, if any unit lacks a
+covariate or if the covariate differs between arms more than random assignment
+allows (a sign it was affected by the variant).
+
 To use a different rule (Bayesian, sequential, domain-specific), pass any object
 with `name` and `decide(a, b, spec, ctx) -> RuleResult`:
 

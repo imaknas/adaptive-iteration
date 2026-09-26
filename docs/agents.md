@@ -105,6 +105,9 @@ An observation row:
 ```
 
 `observed_at` defaults to now. Record the same unit again later to update it.
+Optional `"covariate"`: a number known before the variant was assigned that predicts
+the metric; it makes verdicts arrive sooner. Never use anything measured after
+assignment.
 
 ---
 

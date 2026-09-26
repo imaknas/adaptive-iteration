@@ -125,7 +125,9 @@ def build_server(ledger: str) -> Any:
     def record_observations(observations: list[dict[str, Any]]) -> dict[str, Any]:
         """Record one row per produced unit: {"experiment_id", "variant", "unit_id",
         "produced_at" (ISO), "metrics": {name: number|null}, "observed_at"?,
-        "stratum"?, "pair_id"?}. Recording a unit again later updates it.
+        "stratum"?, "pair_id"?, "covariate"?}. covariate: a number known BEFORE the
+        variant was assigned that predicts the metric (cuts noise). Recording a unit
+        again later updates it.
         All-or-nothing: if any row is invalid, nothing is written."""
         return service.record_observations(ledger, observations)
 

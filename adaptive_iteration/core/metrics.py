@@ -50,6 +50,8 @@ class Observation:
     pair_id     : paired experiments — the two units made from the same input
     stratum     : optional group the unit belongs to (e.g. topic category); rules that
                   support it compare arms within each stratum to remove mix effects
+    covariate   : optional number known BEFORE the variant was assigned that predicts
+                  the metric (e.g. the topic's historical average); used to cut noise
 
     A unit may be observed several times as its metrics mature; the latest
     observation per (experiment_id, unit_id) wins.
@@ -62,6 +64,7 @@ class Observation:
     metrics: dict[str, Optional[float]] = field(default_factory=dict)
     pair_id: Optional[str] = None
     stratum: Optional[str] = None
+    covariate: Optional[float] = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -73,6 +76,7 @@ class Observation:
             "metrics": dict(self.metrics),
             "pair_id": self.pair_id,
             "stratum": self.stratum,
+            "covariate": self.covariate,
         }
 
     @classmethod
@@ -86,4 +90,5 @@ class Observation:
             metrics=dict(d.get("metrics", {})),
             pair_id=d.get("pair_id"),
             stratum=d.get("stratum"),
+            covariate=d.get("covariate"),
         )
