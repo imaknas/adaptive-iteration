@@ -1,6 +1,10 @@
-# adaptive_iteration
+# Ordal
 
 **Domain-agnostic adaptive experimentation: experiment → measure → judge → propose.**
+
+*Ordal* (Old English *ordāl*, the root of "ordeal") meant a trial that yields a
+judgment — which is what every experiment here is for. Formerly `adaptive-iteration`;
+see [Migrating from adaptive-iteration](#migrating-from-adaptive-iteration).
 
 A small Python framework for running an endless loop of A/B experiments in any
 domain — short videos, emails, proposals — without fooling yourself. It owns the
@@ -34,11 +38,11 @@ examples and simulated coverage.
 ## Install
 
 ```bash
-uv add adaptive-iteration      # or: pip install adaptive-iteration
+uv add ordal      # or: pip install ordal
 ```
 
 Python 3.10+. Depends on scipy. For the MCP server:
-`pip install "adaptive-iteration[mcp]"`.
+`pip install "ordal[mcp]"`.
 
 ---
 
@@ -47,7 +51,7 @@ Python 3.10+. Depends on scipy. For the MCP server:
 ```python
 from datetime import timedelta
 from pathlib import Path
-from adaptive_iteration import (
+from ordal import (
     Evaluator, HypothesisEngine, Ledger, MetricSpec, VariableDef, VariableRegistry,
 )
 
@@ -86,7 +90,7 @@ is a quantized model "no worse", and how much of the best-of-many gain is real.
 `tick()` on a schedule:
 
 ```python
-from adaptive_iteration import Loop
+from ordal import Loop
 
 loop = Loop(ledger, "shorts",
             collect=my_adapter.collect_observations,   # experiment -> observations
@@ -198,7 +202,7 @@ groups between the arms cannot pose as an effect.
 already scored, no weekly schedule), call a rule directly and skip the Evaluator:
 
 ```python
-from adaptive_iteration import DecisionContext, MetricSpec, PairedProportionRule, Sample
+from ordal import DecisionContext, MetricSpec, PairedProportionRule, Sample
 
 ids = ("fact1", "fact2", ...)                    # same order in both arms
 a = Sample(values=(1.0, 0.0, ...), pair_ids=ids)  # policy A: recalled?
@@ -240,7 +244,7 @@ recorded history becomes a simulator, and a candidate is adopted only if it is n
 worse than the incumbent.
 
 ```python
-from adaptive_iteration.replay import calibrate, gate, replay
+from ordal.replay import calibrate, gate, replay
 
 pool = [...]  # every real per-unit value of the metric you have
 
@@ -317,13 +321,24 @@ Report unavailable metrics as `None`, never `0`. See `adapters/short_video.py`.
 
 ---
 
+## Migrating from adaptive-iteration
+
+The package was renamed in 0.11: `pip install ordal`, `import ordal`, and the
+`core` subpackage is gone (`adaptive_iteration.core.decision` → `ordal.decision`).
+The command is `ordal`, its environment variable `ORDAL_LEDGER` (the old
+`ADAPTIVE_ITERATION_LEDGER` still works), and the MCP server is started with
+`ordal --ledger … mcp`. Ledgers need no conversion.
+
+`adaptive-iteration` 0.11 is a thin wrapper that installs `ordal` and keeps the old
+import paths working with a deprecation warning; switch at your convenience.
+
 ## Migrating from 0.1
 
 0.1 ledgers stored per-arm averages and a caller-supplied winner flag, which cannot
 be re-judged. A 0.1 file opens read-only; convert it with:
 
 ```python
-from adaptive_iteration.migrate import v1_to_v2
+from ordal.migrate import v1_to_v2
 v1_to_v2(Path("data/adaptive_ledger.json"), Path("data/ledger.jsonl"))
 ```
 

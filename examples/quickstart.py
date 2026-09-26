@@ -6,7 +6,7 @@ import tempfile
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from adaptive_iteration import (
+from ordal import (
     Evaluator,
     EvidenceSummary,
     HypothesisEngine,

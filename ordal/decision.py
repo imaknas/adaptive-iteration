@@ -1,8 +1,8 @@
-"""core/decision.py — Decision types and the DecisionRule strategy.
+"""decision.py — Decision types and the DecisionRule strategy.
 
 A DecisionRule looks at two validated samples and says which arm is better, that
 they are practically equivalent, or that there is not enough evidence yet. The
-Evaluator (core/evaluator.py) decides *when* to ask and which data counts; the rule
+Evaluator (evaluator.py) decides *when* to ask and which data counts; the rule
 only decides *what* the data says.
 """
 from __future__ import annotations

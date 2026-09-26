@@ -34,16 +34,16 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta, timezone
 from typing import Any, Callable, Iterable, Optional
 
-from .core.assignment import assign
-from .core.decision import Decision, Outcome
-from .core.domain import DomainConfig, config_for, current_config
-from .core.experiment import Experiment, Variant
-from .core.hypothesis import HypothesisEngine, Proposer
-from .core.ledger import Ledger
-from .core.lifecycle import abandon, restart
-from .core.metrics import Observation
-from .core.registry import DuplicateDetector
-from .core.screening import Screening
+from .assignment import assign
+from .decision import Decision, Outcome
+from .domain import DomainConfig, config_for, current_config
+from .experiment import Experiment, Variant
+from .hypothesis import HypothesisEngine, Proposer
+from .ledger import Ledger
+from .lifecycle import abandon, restart
+from .metrics import Observation
+from .registry import DuplicateDetector
+from .screening import Screening
 
 Collect = Callable[[Experiment], Iterable[Observation]]
 Apply = Callable[[Experiment, str, Decision], None]

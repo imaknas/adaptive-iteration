@@ -1,4 +1,4 @@
-"""core/screening.py — Would this hypothesis even be detectable here?
+"""screening.py — Would this hypothesis even be detectable here?
 
 Nobody can know in advance whether a hypothesis is right. But given the effect the
 proposer expects, the domain's own spread and how many units it produces per window,

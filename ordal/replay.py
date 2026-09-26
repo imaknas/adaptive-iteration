@@ -25,11 +25,11 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Iterable, Optional, Sequence
 
-from .core.decision import Decision, DecisionContext, DecisionRule, Outcome, Sample
-from .core.evaluator import Evaluator
-from .core.experiment import Experiment
-from .core.ledger import Ledger
-from .core.metrics import MetricSpec, Observation
+from .decision import Decision, DecisionContext, DecisionRule, Outcome, Sample
+from .evaluator import Evaluator
+from .experiment import Experiment
+from .ledger import Ledger
+from .metrics import MetricSpec, Observation
 
 
 @dataclass(frozen=True)

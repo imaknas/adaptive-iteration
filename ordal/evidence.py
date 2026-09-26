@@ -1,4 +1,4 @@
-"""core/evidence.py — EvidenceSummary: what the ledger currently supports, as plain data.
+"""evidence.py — EvidenceSummary: what the ledger currently supports, as plain data.
 
 This is the input a Proposer receives. It contains no prompt text; to_markdown() is
 only a convenience for users who want to feed it to a language model themselves.

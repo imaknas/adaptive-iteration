@@ -13,7 +13,7 @@ import tempfile
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from adaptive_iteration import (
+from ordal import (
     Evaluator,
     Experiment,
     Ledger,
@@ -24,7 +24,7 @@ from adaptive_iteration import (
     VariableRegistry,
     Variant,
 )
-from adaptive_iteration.replay import calibrate
+from ordal.replay import calibrate
 
 DOMAIN = "newsletter"
 

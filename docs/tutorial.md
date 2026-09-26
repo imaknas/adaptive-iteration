@@ -52,7 +52,7 @@ Every verdict is one of five **outcomes**:
 ## 3. Install
 
 ```bash
-uv add adaptive-iteration      # or: pip install adaptive-iteration
+uv add ordal      # or: pip install ordal
 ```
 
 The only dependency is scipy. Nothing here calls a language model unless you make it.
@@ -64,7 +64,7 @@ The only dependency is scipy. Nothing here calls a language model unless you mak
 ### Step 1: say what "better" means
 
 ```python
-from adaptive_iteration import MetricSpec
+from ordal import MetricSpec
 
 SPEC = MetricSpec(name="clicked", min_effect=0.05)
 ```
@@ -78,7 +78,7 @@ proportion units, so `0.05` means 5 percentage points.
 
 ```python
 from pathlib import Path
-from adaptive_iteration import Ledger, VariableDef, VariableRegistry
+from ordal import Ledger, VariableDef, VariableRegistry
 
 ledger = Ledger(Path("data/ledger.jsonl"))
 VariableRegistry(ledger, "newsletter").register(VariableDef(
@@ -97,7 +97,7 @@ evidence in two.
 ### Step 3: define and start an experiment
 
 ```python
-from adaptive_iteration import Experiment, Variant
+from ordal import Experiment, Variant
 
 exp = Experiment(domain="newsletter", variable="subject_style",
                  variant_a=Variant("statement"), variant_b=Variant("question"))
@@ -114,7 +114,7 @@ Whatever sends your emails decides the variant (alternate, or pick at random), t
 you record what happened:
 
 ```python
-from adaptive_iteration import Observation
+from ordal import Observation
 
 ledger.record_observation(Observation(
     experiment_id=exp.id,
@@ -140,7 +140,7 @@ reading wins.
 
 ```python
 from datetime import timedelta
-from adaptive_iteration import Evaluator, ProportionIntervalRule
+from ordal import Evaluator, ProportionIntervalRule
 
 evaluator = Evaluator(ledger, rule=ProportionIntervalRule(),
                       window=timedelta(days=7), maturity=timedelta(days=2))
@@ -191,7 +191,7 @@ Before trusting any verdict, ask two questions about your own numbers:
 `calibrate` answers both by replaying your history thousands of times:
 
 ```python
-from adaptive_iteration.replay import calibrate
+from ordal.replay import calibrate
 
 history = [1.0] * 12 + [0.0] * 88      # last quarter: 12% of emails were clicked
 better  = [1.0] * 17 + [0.0] * 83      # the same, plus 5 points
@@ -261,7 +261,7 @@ If that number is out of reach, raise `min_effect` or accept a
 
 **Can I use my own statistics?** Yes. Pass any object with a `name` and a
 `decide(a, b, spec, ctx)` method as `rule=`. Before switching, compare it with the
-current one using `adaptive_iteration.replay.gate`.
+current one using `ordal.replay.gate`.
 
 **Does it need an API key?** No. Only if you choose to write a proposer that calls
 a model.

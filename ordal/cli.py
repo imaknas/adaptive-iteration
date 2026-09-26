@@ -1,17 +1,17 @@
-"""cli.py — `adaptive-iteration` command line, built for scripts and agents.
+"""cli.py — `ordal` command line, built for scripts and agents.
 
 Every command prints JSON on stdout (evidence --markdown prints text). Errors print
 {"error": "..."} and exit 1. The ledger path comes from --ledger or the
-ADAPTIVE_ITERATION_LEDGER environment variable.
+ORDAL_LEDGER environment variable.
 
-    adaptive-iteration --ledger data/ledger.jsonl configure --domain newsletter \\
+    ordal --ledger data/ledger.jsonl configure --domain newsletter \\
         --metric clicked --min-effect 0.05 --rule proportion
-    adaptive-iteration register-variable --domain newsletter --name subject_style
-    adaptive-iteration accept --domain newsletter --json '{"variable": "subject_style",
+    ordal register-variable --domain newsletter --name subject_style
+    ordal accept --domain newsletter --json '{"variable": "subject_style",
         "variant_a": "statement", "variant_b": "question"}'
-    cat rows.jsonl | adaptive-iteration record
-    adaptive-iteration evaluate --domain newsletter
-    adaptive-iteration mcp            # serve the same operations over MCP (stdio)
+    cat rows.jsonl | ordal record
+    ordal evaluate --domain newsletter
+    ordal mcp            # serve the same operations over MCP (stdio)
 """
 from __future__ import annotations
 
@@ -47,10 +47,11 @@ def _payload(args: argparse.Namespace) -> Any:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(prog="adaptive-iteration",
+    p = argparse.ArgumentParser(prog="ordal",
                                 description="Judge A/B experiments honestly; JSON in, JSON out.")
-    p.add_argument("--ledger", default=os.environ.get("ADAPTIVE_ITERATION_LEDGER"),
-                   help="ledger file (default: $ADAPTIVE_ITERATION_LEDGER)")
+    p.add_argument("--ledger", default=(os.environ.get("ORDAL_LEDGER")
+                                        or os.environ.get("ADAPTIVE_ITERATION_LEDGER")),
+                   help="ledger file (default: $ORDAL_LEDGER)")
     sub = p.add_subparsers(dest="command", required=True)
 
     c = sub.add_parser("configure", help="set how a domain's experiments are judged")
@@ -149,7 +150,7 @@ def run(args: argparse.Namespace) -> Any:
         return None
     if not args.ledger:
         raise service.ServiceError("no ledger: pass --ledger PATH or set "
-                                   "ADAPTIVE_ITERATION_LEDGER")
+                                   "ORDAL_LEDGER")
     L = args.ledger
     if args.command == "configure":
         return service.configure(

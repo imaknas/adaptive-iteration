@@ -3,7 +3,7 @@ import statistics
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
-from adaptive_iteration import (
+from ordal import (
     Evaluator,
     Experiment,
     Ledger,
@@ -14,8 +14,8 @@ from adaptive_iteration import (
     WelchIntervalRule,
     build_evidence,
 )
-from adaptive_iteration.core.decision import DecisionContext, RuleResult, Sample
-from adaptive_iteration.replay import calibrate, gate, replay
+from ordal.decision import DecisionContext, RuleResult, Sample
+from ordal.replay import calibrate, gate, replay
 
 SPEC = MetricSpec(name="m", min_effect=5.0)
 # skewed, heavy-ish pool resembling real per-unit metrics

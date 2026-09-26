@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from adaptive_iteration import (
+from ordal import (
     Experiment,
     Ledger,
     Loop,
@@ -20,8 +20,8 @@ from adaptive_iteration import (
     build_evidence,
     service,
 )
-from adaptive_iteration.core.domain import DomainConfig, save_config
-from adaptive_iteration.core.hypothesis import HypothesisEngine
+from ordal.domain import DomainConfig, save_config
+from ordal.hypothesis import HypothesisEngine
 
 T0 = datetime(2026, 9, 7, tzinfo=timezone.utc)
 SPEC = MetricSpec(name="m", min_effect=5.0)
@@ -59,7 +59,7 @@ def test_assignment_refuses_paired_and_closed(tmp_path):
         assign(ledger, started(ledger, "p", mode="paired").id, "u1")
     exp = started(ledger, "c")
     ledger.mark_applied  # noqa: B018 - just checking the API exists
-    from adaptive_iteration.core.decision import Decision
+    from ordal.decision import Decision
     ledger.record_decision(Decision(exp.id, Outcome.EQUIVALENT, "m", 1, 5, 5, {}, "r", {},
                                     "x", T0.isoformat()))
     with pytest.raises(ValueError, match="closed"):

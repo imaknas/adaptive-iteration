@@ -11,7 +11,7 @@ import json
 import re
 from typing import Callable
 
-from adaptive_iteration import EvidenceSummary, Proposal, VariableDef, Variant
+from ordal import EvidenceSummary, Proposal, VariableDef, Variant
 
 SYSTEM = """\
 You design the next A/B experiments. Each experiment tests exactly ONE variable.

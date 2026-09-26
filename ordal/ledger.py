@@ -1,4 +1,4 @@
-"""core/ledger.py — Append-only JSONL ledger, the single source of truth.
+"""ledger.py — Append-only JSONL ledger, the single source of truth.
 
 Every line is one event with an envelope {"schema": 2, "kind": ..., "recorded_at": ...}:
 
@@ -9,12 +9,12 @@ Every line is one event with an envelope {"schema": 2, "kind": ..., "recorded_at
     variable            {"domain", "name", "description", "aliases", "execution"}
     variable_alias      {"domain", "alias", "name"}
     legacy_arm_summary  a v0.1 record (arm average + caller-supplied winner flag)
-    assignment          {"experiment_id", "unit_id", "variant", "stratum"} (core/assignment.py)
+    assignment          {"experiment_id", "unit_id", "variant", "stratum"} (assignment.py)
     applied             {"experiment_id", "variant", "outcome"}: a verdict put into effect
-    abandoned           {"experiment_id", "reason"}: closed without a verdict (core/lifecycle.py)
+    abandoned           {"experiment_id", "reason"}: closed without a verdict (lifecycle.py)
 
 Nothing is ever rewritten; state is derived by replaying events. A v0.1 ledger
-(a single JSON array) opens read-only — convert it with adaptive_iteration.migrate.
+(a single JSON array) opens read-only — convert it with ordal.migrate.
 Ledger(None) keeps events in memory only (used by replay).
 """
 from __future__ import annotations
@@ -58,7 +58,7 @@ class Ledger:
         if self.read_only:
             raise LedgerReadOnlyError(
                 f"{self.path} is a v0.1 ledger (JSON array); convert it with "
-                "adaptive_iteration.migrate.v1_to_v2() before writing"
+                "ordal.migrate.v1_to_v2() before writing"
             )
         event = {"schema": SCHEMA, "kind": kind, "recorded_at": utcnow_iso(), **payload}
         if self.path is not None:

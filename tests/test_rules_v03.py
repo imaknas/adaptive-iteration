@@ -3,9 +3,9 @@ import random
 
 import pytest
 
-from adaptive_iteration import MetricSpec, Outcome, ProportionIntervalRule, WelchIntervalRule
-from adaptive_iteration.core.decision import DecisionContext, Sample
-from adaptive_iteration.replay import calibrate
+from ordal import MetricSpec, Outcome, ProportionIntervalRule, WelchIntervalRule
+from ordal.decision import DecisionContext, Sample
+from ordal.replay import calibrate
 
 REPLY = MetricSpec(name="replied", min_effect=0.10, valid_range=(0.0, 1.0))
 PROP = ProportionIntervalRule()

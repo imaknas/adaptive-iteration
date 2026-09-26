@@ -1,4 +1,4 @@
-"""core/experiment.py — Experiment / Variant dataclasses + ExperimentState.
+"""experiment.py — Experiment / Variant dataclasses + ExperimentState.
 
 All fields are plain Python types so they round-trip cleanly through JSON.
 """

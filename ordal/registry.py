@@ -1,4 +1,4 @@
-"""core/registry.py — Per-domain variable registry, stored in the ledger.
+"""registry.py — Per-domain variable registry, stored in the ledger.
 
 Evidence accumulates by variable name, so the same idea under three names splits
 its evidence three ways. The registry gives every variable one canonical name;

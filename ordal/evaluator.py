@@ -1,4 +1,4 @@
-"""core/evaluator.py — When to judge an experiment, and which data counts.
+"""evaluator.py — When to judge an experiment, and which data counts.
 
 Schedule: an experiment is judged once per `window` after it starts (checkpoint 1,
 2, …, max_windows). Between checkpoints evaluate() answers INSUFFICIENT without

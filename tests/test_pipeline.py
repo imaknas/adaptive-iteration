@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from adaptive_iteration import (
+from ordal import (
     Evaluator,
     Experiment,
     HypothesisEngine,
@@ -18,8 +18,8 @@ from adaptive_iteration import (
     Variant,
     build_evidence,
 )
-from adaptive_iteration.core.ledger import LedgerReadOnlyError
-from adaptive_iteration.migrate import v1_to_v2
+from ordal.ledger import LedgerReadOnlyError
+from ordal.migrate import v1_to_v2
 
 SPEC = MetricSpec(name="avg_view_pct", min_effect=3.0)
 T0 = datetime(2026, 9, 1, tzinfo=timezone.utc)

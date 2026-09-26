@@ -1,4 +1,4 @@
-"""core/hypothesis.py — HypothesisEngine: evidence → injected Proposer → reviewed proposals.
+"""hypothesis.py — HypothesisEngine: evidence → injected Proposer → reviewed proposals.
 
 The framework does not know where hypotheses come from. A Proposer may call a
 language model, enumerate a parameter grid, apply rules, or ask a human; it only

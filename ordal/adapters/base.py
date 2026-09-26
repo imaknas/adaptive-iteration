@@ -7,8 +7,8 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from ..core.experiment import Experiment
-from ..core.metrics import Observation
+from ..experiment import Experiment
+from ..metrics import Observation
 
 
 class DomainAdapter(Protocol):

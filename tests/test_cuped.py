@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from adaptive_iteration import (
+from ordal import (
     Evaluator,
     Experiment,
     Ledger,
@@ -18,8 +18,8 @@ from adaptive_iteration import (
     WelchIntervalRule,
     service,
 )
-from adaptive_iteration.core.decision import DecisionContext
-from adaptive_iteration.replay import replay
+from ordal.decision import DecisionContext
+from ordal.replay import replay
 
 SPEC = MetricSpec(name="m", min_effect=2.0)
 ONE = DecisionContext("c", paired=False, checkpoint=1, max_checkpoints=1)

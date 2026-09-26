@@ -18,20 +18,20 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Optional, Union
 
-from .core.assignment import assign as _assign
-from .core.decision import Decision, Outcome
-from .core.domain import DomainConfig, config_for, current_config, save_config
-from .core.evidence import build_evidence
-from .core.experiment import Experiment, Variant
-from .core.hypothesis import HypothesisEngine, Proposal, ReviewedProposal
-from .core.ledger import Ledger
-from .core.lifecycle import abandon as _abandon
-from .core.lifecycle import restart as _restart
-from .core.metrics import MetricSpec, Observation
-from .core.registry import VariableDef, VariableRegistry
-from .core.screening import Screening
-from .core.shrinkage import approx_se, estimate_prior
+from .assignment import assign as _assign
+from .decision import Decision, Outcome
+from .domain import DomainConfig, config_for, current_config, save_config
+from .evidence import build_evidence
+from .experiment import Experiment, Variant
+from .hypothesis import HypothesisEngine, Proposal, ReviewedProposal
+from .ledger import Ledger
+from .lifecycle import abandon as _abandon
+from .lifecycle import restart as _restart
+from .metrics import MetricSpec, Observation
+from .registry import VariableDef, VariableRegistry
 from .replay import calibrate as _calibrate
+from .screening import Screening
+from .shrinkage import approx_se, estimate_prior
 
 PathLike = Union[str, Path]
 
@@ -48,7 +48,7 @@ def _open(ledger: PathLike) -> Ledger:
     led = Ledger(Path(ledger))
     if led.read_only:
         raise ServiceError(f"{ledger} is a v0.1 ledger; convert it first with "
-                           "adaptive_iteration.migrate.v1_to_v2(src, dst)")
+                           "ordal.migrate.v1_to_v2(src, dst)")
     return led
 
 

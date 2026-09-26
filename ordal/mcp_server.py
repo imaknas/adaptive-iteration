@@ -1,7 +1,7 @@
 """mcp_server.py — The service operations as MCP tools (stdio).
 
-Requires the optional extra:  pip install "adaptive-iteration[mcp]"
-Run:                           adaptive-iteration --ledger /abs/path/ledger.jsonl mcp
+Requires the optional extra:  pip install "ordal[mcp]"
+Run:                           ordal --ledger /abs/path/ledger.jsonl mcp
 
 One server serves one ledger file. Tools are thin wrappers over service.py.
 """
@@ -15,7 +15,7 @@ from . import service
 F = TypeVar("F", bound=Callable[..., Any])
 
 INSTRUCTIONS = """\
-adaptive-iteration judges A/B experiments on units you produce (posts, emails,
+ordal judges A/B experiments on units you produce (posts, emails,
 videos, proposals, model outputs) so that an automated loop does not fool itself.
 
 Workflow:
@@ -56,11 +56,11 @@ def build_server(ledger: str) -> Any:
         from mcp.types import ToolAnnotations
     except ImportError as e:
         raise service.ServiceError(
-            'the MCP server needs the optional extra: pip install "adaptive-iteration[mcp]"'
+            'the MCP server needs the optional extra: pip install "ordal[mcp]"'
         ) from e
     from . import __version__
 
-    server = MCPServer(name="adaptive-iteration", instructions=INSTRUCTIONS,
+    server = MCPServer(name="ordal", instructions=INSTRUCTIONS,
                        version=__version__)
     read_only = ToolAnnotations(readOnlyHint=True)
 
@@ -201,5 +201,5 @@ def build_server(ledger: str) -> Any:
 def serve(ledger: Optional[str]) -> None:
     if not ledger:
         raise service.ServiceError("no ledger: pass --ledger PATH or set "
-                                   "ADAPTIVE_ITERATION_LEDGER")
+                                   "ORDAL_LEDGER")
     build_server(ledger).run("stdio")

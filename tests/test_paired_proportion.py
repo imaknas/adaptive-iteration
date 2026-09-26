@@ -3,7 +3,7 @@ import random
 
 import pytest
 
-from adaptive_iteration import (
+from ordal import (
     DecisionContext,
     MetricSpec,
     Outcome,

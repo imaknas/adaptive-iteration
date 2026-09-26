@@ -1,4 +1,4 @@
-"""core/metrics.py — MetricSpec (what counts as better) and Observation (one unit's data)."""
+"""metrics.py — MetricSpec (what counts as better) and Observation (one unit's data)."""
 from __future__ import annotations
 
 from dataclasses import dataclass, field

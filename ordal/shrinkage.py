@@ -1,4 +1,4 @@
-"""core/shrinkage.py — Correcting reported effects for the winner's curse.
+"""shrinkage.py — Correcting reported effects for the winner's curse.
 
 The experiments that get declared winners are disproportionately the ones noise
 happened to push upward, so their measured effects overstate the truth on average.

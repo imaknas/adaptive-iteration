@@ -1,9 +1,9 @@
-# Using adaptive-iteration from an agent
+# Using ordal from an agent
 
 An agent that improves something by experimenting (writing posts, emails, prompts,
 code) needs a judge it can't argue with. Left to itself, a loop tends to declare
 winners from noise, count missing data as zero, and quietly relax its own
-standards. adaptive-iteration gives the agent the same operations a person would use,
+standards. ordal gives the agent the same operations a person would use,
 with those failure modes blocked.
 
 Two ways in, with identical behaviour:
@@ -20,14 +20,14 @@ and verdict.
 ## Connect over MCP
 
 ```bash
-pip install "adaptive-iteration[mcp]"          # or use uvx as below, no install
+pip install "ordal[mcp]"          # or use uvx as below, no install
 ```
 
 **Claude Code:**
 
 ```bash
-claude mcp add adaptive-iteration -- \
-  uvx --from "adaptive-iteration[mcp]" adaptive-iteration \
+claude mcp add ordal -- \
+  uvx --from "ordal[mcp]" ordal \
   --ledger /absolute/path/to/ledger.jsonl mcp
 ```
 
@@ -36,9 +36,9 @@ claude mcp add adaptive-iteration -- \
 ```json
 {
   "mcpServers": {
-    "adaptive-iteration": {
+    "ordal": {
       "command": "uvx",
-      "args": ["--from", "adaptive-iteration[mcp]", "adaptive-iteration",
+      "args": ["--from", "ordal[mcp]", "ordal",
                "--ledger", "/absolute/path/to/ledger.jsonl", "mcp"]
     }
   }
@@ -73,25 +73,25 @@ connects, so no extra prompting is needed.
 ## Use from the command line
 
 ```bash
-export ADAPTIVE_ITERATION_LEDGER=data/ledger.jsonl
+export ORDAL_LEDGER=data/ledger.jsonl
 
-adaptive-iteration configure --domain newsletter --metric clicked \
+ordal configure --domain newsletter --metric clicked \
     --min-effect 0.05 --rule proportion
-adaptive-iteration register-variable --domain newsletter --name subject_style \
+ordal register-variable --domain newsletter --name subject_style \
     --execution "template picked in send_campaign.py"
-adaptive-iteration accept --domain newsletter \
+ordal accept --domain newsletter \
     --json '{"variable": "subject_style", "variant_a": "statement", "variant_b": "question"}'
 
 # one JSON object per unit, as a list or JSONL, from a file or stdin
-cat sent_today.jsonl | adaptive-iteration record
+cat sent_today.jsonl | ordal record
 
-adaptive-iteration evaluate --domain newsletter     # safe to run daily from cron
-adaptive-iteration evidence --domain newsletter --markdown
-adaptive-iteration calibrate --domain newsletter --effect 0 --per-window 200
+ordal evaluate --domain newsletter     # safe to run daily from cron
+ordal evidence --domain newsletter --markdown
+ordal calibrate --domain newsletter --effect 0 --per-window 200
 
-adaptive-iteration assign --experiment 3f9a1c2e --unit email-0043 --stratum loyal
-adaptive-iteration pending --domain newsletter
-adaptive-iteration mark-applied --experiment 3f9a1c2e
+ordal assign --experiment 3f9a1c2e --unit email-0043 --stratum loyal
+ordal pending --domain newsletter
+ordal mark-applied --experiment 3f9a1c2e
 ```
 
 Errors print `{"error": "..."}`, exit with status 1, and say how to fix the call.

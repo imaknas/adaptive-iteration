@@ -32,3 +32,16 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: python3 .github/scripts/check_commits.py
+
+  compat:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: The adaptive-iteration shim keeps old imports working
+        run: |
+          uv build -o dist
+          uv build compat/adaptive-iteration -o dist
+          uv run --no-project --isolated \
+            --with dist/ordal-*.whl --with dist/adaptive_iteration-*.whl \
+            python .github/scripts/check_compat.py

@@ -2,13 +2,13 @@ import random
 
 import pytest
 
-from adaptive_iteration.core.decision import (
+from ordal.decision import (
     DecisionContext,
     Outcome,
     Sample,
     WelchIntervalRule,
 )
-from adaptive_iteration.core.metrics import MetricSpec
+from ordal.metrics import MetricSpec
 
 SPEC = MetricSpec(name="m", min_effect=2.0)
 RULE = WelchIntervalRule()

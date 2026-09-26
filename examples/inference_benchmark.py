@@ -21,14 +21,14 @@ from __future__ import annotations
 
 import random
 
-from adaptive_iteration import (
+from ordal import (
     DecisionContext,
     MetricSpec,
     PairedProportionRule,
     Sample,
     WelchIntervalRule,
 )
-from adaptive_iteration.core.shrinkage import approx_se, estimate_prior
+from ordal.shrinkage import approx_se, estimate_prior
 
 ONE_LOOK = DecisionContext("batch", paired=True, checkpoint=1, max_checkpoints=1)
 rng = random.Random(0)

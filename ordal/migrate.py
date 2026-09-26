@@ -10,8 +10,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from .core.ledger import Ledger, legacy_event
-from .core.registry import VariableDef, VariableRegistry
+from .ledger import Ledger, legacy_event
+from .registry import VariableDef, VariableRegistry
 
 
 def v1_to_v2(src: Path, dst: Path) -> Ledger:

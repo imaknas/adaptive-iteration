@@ -1,4 +1,4 @@
-"""core/config.py — AdaptiveConfig: read/write JSON config with winner hints support.
+"""config.py — AdaptiveConfig: read/write JSON config with winner hints support.
 
 Config file schema (example):
 {

@@ -1,4 +1,4 @@
-"""core/assignment.py — Which variant should the next unit get?
+"""assignment.py — Which variant should the next unit get?
 
 Letting a pipeline pick variants itself is where bias creeps in ("this topic suits
 B"). assign() decides instead: within the unit's stratum it gives the next unit to

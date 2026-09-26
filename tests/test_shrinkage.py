@@ -4,9 +4,9 @@ import statistics
 
 import pytest
 
-from adaptive_iteration import Experiment, Ledger, MetricSpec, Outcome, Variant, build_evidence
-from adaptive_iteration.core.decision import Decision
-from adaptive_iteration.core.shrinkage import MIN_EXPERIMENTS, approx_se, estimate_prior
+from ordal import Experiment, Ledger, MetricSpec, Outcome, Variant, build_evidence
+from ordal.decision import Decision
+from ordal.shrinkage import MIN_EXPERIMENTS, approx_se, estimate_prior
 
 Z95 = 1.959963984540054
 
@@ -92,7 +92,7 @@ def test_evidence_reports_corrected_effects_without_changing_verdicts(tmp_path):
 def test_best_of_many_small_samples_is_corrected_without_overshooting():
     """Pick the best of 28 strategies, each measured on only 8 pairs. Rules record their
     own se; backing it out of a small-sample t interval instead over-shrank by ~20%."""
-    from adaptive_iteration import DecisionContext, Sample, WelchIntervalRule
+    from ordal import DecisionContext, Sample, WelchIntervalRule
     rng = random.Random(0)
     ctx = DecisionContext("b", paired=True, checkpoint=1, max_checkpoints=1)
     spec = MetricSpec("s", min_effect=2.0)

@@ -1,4 +1,4 @@
-"""core/domain.py — Per-domain judging settings, stored in the ledger.
+"""domain.py — Per-domain judging settings, stored in the ledger.
 
 Recording the metric, rule and schedule once per domain means callers (especially
 agents) don't restate them on every call — and can't quietly change them. Settings

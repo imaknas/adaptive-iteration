@@ -1,4 +1,4 @@
-"""core/lifecycle.py — Ending an experiment without a verdict, and starting it over.
+"""lifecycle.py — Ending an experiment without a verdict, and starting it over.
 
 Sometimes an experiment's data stops being comparable before it can be judged: the
 pipeline changed underneath it (new model, new prompt, new config version), or it

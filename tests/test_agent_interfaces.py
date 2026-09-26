@@ -6,8 +6,8 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from adaptive_iteration import service
-from adaptive_iteration.cli import main as cli
+from ordal import service
+from ordal.cli import main as cli
 
 T0 = datetime(2026, 9, 1, tzinfo=timezone.utc)
 
@@ -143,7 +143,7 @@ def test_cli_loop_and_errors(ledger, capsys, tmp_path):
 
 
 def test_cli_needs_a_ledger(capsys, monkeypatch):
-    monkeypatch.delenv("ADAPTIVE_ITERATION_LEDGER", raising=False)
+    monkeypatch.delenv("ORDAL_LEDGER", raising=False)
     code, out = run_cli(capsys, "status")
     assert code == 1 and "--ledger" in out["error"]
 
@@ -154,7 +154,7 @@ def test_mcp_tools_end_to_end(ledger):
     pytest.importorskip("mcp")
     from mcp import Client
 
-    from adaptive_iteration.mcp_server import build_server
+    from ordal.mcp_server import build_server
 
     async def scenario():
         async with Client(build_server(ledger)) as c:

@@ -12,8 +12,8 @@ import random
 from datetime import datetime, timezone
 from typing import Optional
 
-from ..core.experiment import Experiment
-from ..core.metrics import Observation
+from ..experiment import Experiment
+from ..metrics import Observation
 
 
 class ShortVideoAdapter:

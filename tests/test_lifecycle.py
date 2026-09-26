@@ -5,7 +5,7 @@ from datetime import timedelta
 import pytest
 from test_loop import SPEC, T0, Fixed, Ideas, Pipeline, configured, prop, run, started
 
-from adaptive_iteration import (
+from ordal import (
     Evaluator,
     Ledger,
     Loop,
@@ -17,8 +17,8 @@ from adaptive_iteration import (
     restart,
     service,
 )
-from adaptive_iteration.core.domain import DomainConfig, config_for, save_config
-from adaptive_iteration.core.hypothesis import HypothesisEngine
+from ordal.domain import DomainConfig, config_for, save_config
+from ordal.hypothesis import HypothesisEngine
 
 # ── abandon ───────────────────────────────────────────────────────────────────
 
