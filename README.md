@@ -55,7 +55,7 @@ from ordal import (
     Evaluator, HypothesisEngine, Ledger, MetricSpec, VariableDef, VariableRegistry,
 )
 
-ledger = Ledger(Path("data/ledger.jsonl"))
+ledger = Ledger(Path("data/ledger.jsonl"))   # or Ledger(MemoryLog()), or your own EventLog
 spec = MetricSpec(name="avg_view_pct", min_effect=3.0)   # smallest difference that matters
 
 # 1. Register the variables you know about (proposers may add more, see below)
@@ -320,6 +320,20 @@ class DomainAdapter(Protocol):
 Report unavailable metrics as `None`, never `0`. See `adapters/short_video.py`.
 
 ---
+
+## Storage and time
+
+A `Ledger` reads and appends events through an `EventLog`: `JsonlFile` (what a path
+gives you), `MemoryLog`, or your own — anything with `load()`, `append(event)`,
+`read_only` and `describe()`, e.g. a database table. Every timestamp the framework
+writes, and every "now" it judges at, comes from the ledger's clock:
+
+```python
+Ledger(JsonlFile("data/ledger.jsonl"), clock=my_clock)   # my_clock() -> aware datetime
+```
+
+Tests and simulations can pass a clock they move by hand; programs use the default,
+the system clock.
 
 ## Migrating from adaptive-iteration
 

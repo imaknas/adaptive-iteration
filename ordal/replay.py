@@ -22,11 +22,13 @@ import random
 import statistics
 from collections import Counter
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 from typing import Iterable, Optional, Sequence
 
+from .clock import parse_time
 from .decision import Decision, DecisionContext, DecisionRule, Outcome, Sample
 from .evaluator import Evaluator
+from .eventlog import MemoryLog
 from .experiment import Experiment
 from .ledger import Ledger
 from .metrics import MetricSpec, Observation
@@ -149,22 +151,22 @@ def replay(experiment: Experiment, observations: Sequence[Observation], spec: Me
     """
     if not experiment.started:
         raise ValueError("experiment.started is required for replay")
-    start = _parse(experiment.started)
+    start = parse_time(experiment.started)
     decisions = []
     for k in range(1, max_windows + 1):
         at = start + k * window
-        ledger = Ledger(None)
+        ledger = Ledger(MemoryLog(), clock=lambda at=at: at)  # replay time, not wall time
         exp = Experiment.from_dict(experiment.to_dict())
         ledger.add_experiment(exp)
         ledger.start_experiment(exp.id, at=experiment.started)
         for obs in observations:
-            produced = _parse(obs.produced_at)
+            produced = parse_time(obs.produced_at)
             if produced + maturity > at:
                 continue
             ledger.record_observation(Observation(
                 experiment_id=exp.id, variant=obs.variant, unit_id=obs.unit_id,
                 produced_at=obs.produced_at,
-                observed_at=max(produced + maturity, min(at, _parse(obs.observed_at))
+                observed_at=max(produced + maturity, min(at, parse_time(obs.observed_at))
                                 ).isoformat(),
                 metrics=obs.metrics, pair_id=obs.pair_id, stratum=obs.stratum,
                 covariate=obs.covariate))
@@ -177,10 +179,6 @@ def replay(experiment: Experiment, observations: Sequence[Observation], spec: Me
             break
     return decisions
 
-
-def _parse(ts: str) -> datetime:
-    dt = datetime.fromisoformat(ts)
-    return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
 
 
 def _rule_label(rule: DecisionRule) -> str:

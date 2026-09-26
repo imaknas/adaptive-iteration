@@ -9,9 +9,10 @@ experiments started after the change. No moving the goalposts mid-experiment.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 from typing import Any, Literal, Optional
 
+from .clock import parse_time
 from .decision import DecisionRule, ProportionIntervalRule, WelchIntervalRule
 from .evaluator import Evaluator
 from .experiment import Experiment
@@ -62,10 +63,6 @@ class DomainConfig:
                    max_windows=d.get("max_windows", 4))
 
 
-def _parse(ts: str) -> datetime:
-    dt = datetime.fromisoformat(ts)
-    return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
-
 
 def save_config(ledger: Ledger, config: DomainConfig) -> None:
     ledger.append_raw("domain_config", {"config": config.to_dict()})
@@ -92,6 +89,6 @@ def config_for(ledger: Ledger, experiment: Experiment) -> Optional[DomainConfig]
         return None
     if not experiment.started:
         return history[-1][1]
-    started = _parse(experiment.started)
-    before = [cfg for at, cfg in history if _parse(at) <= started]
+    started = parse_time(experiment.started)
+    before = [cfg for at, cfg in history if parse_time(at) <= started]
     return before[-1] if before else history[0][1]

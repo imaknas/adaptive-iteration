@@ -13,9 +13,10 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from typing import Optional
 
+from .clock import parse_time
 from .decision import (
     Decision,
     DecisionContext,
@@ -28,11 +29,6 @@ from .ledger import Ledger
 from .metrics import MetricSpec, Observation
 
 
-def _parse(ts: str) -> datetime:
-    dt = datetime.fromisoformat(ts)
-    return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
-
-
 @dataclass
 class Evaluator:
     ledger: Ledger
@@ -43,7 +39,7 @@ class Evaluator:
 
     def evaluate(self, experiment_id: str, spec: MetricSpec,
                  now: Optional[datetime] = None) -> Decision:
-        now = now or datetime.now(timezone.utc)
+        now = now or self.ledger.clock()
         exp = self.ledger.experiment(experiment_id)
         if exp is None:
             raise KeyError(experiment_id)
@@ -60,10 +56,10 @@ class Evaluator:
         if not exp.started:
             return self._unrecorded(experiment_id, spec, 0, a, b, excluded,
                                     "experiment not started", now)
-        elapsed = now - _parse(exp.started)
+        elapsed = now - parse_time(exp.started)
         checkpoint = min(int(elapsed / self.window), self.max_windows)
         if checkpoint < 1:
-            nxt = _parse(exp.started) + self.window
+            nxt = parse_time(exp.started) + self.window
             return self._unrecorded(experiment_id, spec, 0, a, b, excluded,
                                     f"before first checkpoint ({nxt.isoformat()})", now)
 
@@ -98,7 +94,7 @@ class Evaluator:
             if obs.variant not in arms:
                 excluded["unknown_variant"] += 1
                 continue
-            if _parse(obs.observed_at) - _parse(obs.produced_at) < self.maturity:
+            if parse_time(obs.observed_at) - parse_time(obs.produced_at) < self.maturity:
                 excluded["immature"] += 1
                 continue
             value = obs.metrics.get(spec.name)

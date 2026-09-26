@@ -13,10 +13,11 @@ from __future__ import annotations
 import math
 import statistics
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from statistics import NormalDist
 from typing import Any, Optional
 
+from .clock import parse_time
 from .ledger import Ledger
 from .metrics import MetricSpec
 
@@ -71,10 +72,6 @@ class Capacity:
         return {**out, "verdict": "ok"}
 
 
-def _parse(ts: str) -> datetime:
-    dt = datetime.fromisoformat(ts)
-    return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
-
 
 def estimate_capacity(ledger: Ledger, domain: str, spec: MetricSpec, screening: Screening
                       ) -> Capacity:
@@ -89,7 +86,7 @@ def estimate_capacity(ledger: Ledger, domain: str, spec: MetricSpec, screening: 
     lo, hi = spec.valid_range
     for exp in ledger.experiments(domain=domain):
         for obs in ledger.observations(exp.id):
-            produced_by_unit[obs.unit_id] = _parse(obs.produced_at)
+            produced_by_unit[obs.unit_id] = parse_time(obs.produced_at)
             v = obs.metrics.get(spec.name)
             if v is None or not math.isfinite(v):
                 continue

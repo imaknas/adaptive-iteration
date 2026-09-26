@@ -31,10 +31,11 @@ were already handled, mark them with ledger.mark_applied first.
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from typing import Any, Callable, Iterable, Optional
 
 from .assignment import assign
+from .clock import parse_time
 from .decision import Decision, Outcome
 from .domain import DomainConfig, config_for, current_config
 from .experiment import Experiment, Variant
@@ -71,10 +72,6 @@ class TickReport:
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
-
-def _parse(ts: str) -> datetime:
-    dt = datetime.fromisoformat(ts)
-    return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
 
 
 class Loop:
@@ -135,7 +132,7 @@ class Loop:
     # ── The tick ──────────────────────────────────────────────────────────────
 
     def tick(self, now: Optional[datetime] = None) -> TickReport:
-        now = now or datetime.now(timezone.utc)
+        now = now or self.ledger.clock()
         report = TickReport(at=now.isoformat())
 
         for exp in self.running():
@@ -168,7 +165,7 @@ class Loop:
         d = self.ledger.final_decision(experiment_id) if exp else None
         if exp is None or d is None or d.outcome is not Outcome.B_BETTER:
             raise ValueError(f"{experiment_id} has no B-win waiting for approval")
-        report = TickReport(at=datetime.now(timezone.utc).isoformat())
+        report = TickReport(at=self.ledger.now())
         self._apply(exp, d, report)
         if report.errors:
             raise RuntimeError(report.errors[0])
@@ -176,7 +173,7 @@ class Loop:
     def approve_start(self, experiment_id: str, at: Optional[datetime] = None) -> None:
         """Start an experiment that was held by require_start_approval."""
         exp = self._waiting(experiment_id)
-        self.ledger.start_experiment(exp.id, at=(at or datetime.now(timezone.utc)).isoformat())
+        self.ledger.start_experiment(exp.id, at=(at or self.ledger.clock()).isoformat())
 
     def reject_start(self, experiment_id: str, reason: str = "rejected before start") -> None:
         """Drop an experiment that was held by require_start_approval."""
@@ -189,7 +186,7 @@ class Loop:
                 at: Optional[datetime] = None) -> Experiment:
         """Abandon a running experiment and start it again from *at* (default now)."""
         return restart(self.ledger, experiment_id, reason,
-                       at=(at or datetime.now(timezone.utc)).isoformat())
+                       at=(at or self.ledger.clock()).isoformat())
 
     # ── Internals ─────────────────────────────────────────────────────────────
 
@@ -214,8 +211,8 @@ class Loop:
             prev = last.get(obs.unit_id)
             if prev is None or prev.metrics != obs.metrics:
                 fresh.append(obs)
-            elif (_parse(prev.observed_at) - _parse(prev.produced_at) < maturity
-                  and _parse(obs.observed_at) > _parse(prev.observed_at)):
+            elif (parse_time(prev.observed_at) - parse_time(prev.produced_at) < maturity
+                  and parse_time(obs.observed_at) > parse_time(prev.observed_at)):
                 fresh.append(obs)      # same values, but now read at a later (maturer) time
         self.ledger.record_observations(fresh)
         return len(fresh)

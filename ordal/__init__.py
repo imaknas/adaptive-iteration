@@ -10,6 +10,7 @@ results are judged by a DecisionRule (default: WelchIntervalRule).
     )
 """
 from .assignment import assign
+from .clock import Clock, system_clock
 from .decision import (
     Decision,
     DecisionContext,
@@ -22,6 +23,7 @@ from .decision import (
     WelchIntervalRule,
 )
 from .evaluator import Evaluator
+from .eventlog import EventLog, JsonlFile, MemoryLog
 from .evidence import EvidenceSummary, VariableEvidence, build_evidence
 from .experiment import Experiment, Variant
 from .hypothesis import HypothesisEngine, Proposal, Proposer, ReviewedProposal
@@ -41,5 +43,6 @@ __all__ = [
     "HypothesisEngine", "Proposal", "Proposer", "ReviewedProposal", "Ledger",
     "MetricSpec", "Observation", "DuplicateDetector", "TokenSetDetector", "VariableDef",
     "VariableRegistry", "assign", "Screening", "estimate_capacity", "Assignment", "Loop",
-    "TickReport", "abandon", "restart",
+    "TickReport", "abandon", "restart", "Clock", "system_clock", "EventLog", "JsonlFile",
+    "MemoryLog",
 ]

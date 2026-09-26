@@ -9,9 +9,9 @@ Observation. Replace _fetch() with calls to your analytics backend.
 from __future__ import annotations
 
 import random
-from datetime import datetime, timezone
 from typing import Optional
 
+from ..clock import Clock, system_clock
 from ..experiment import Experiment
 from ..metrics import Observation
 
@@ -19,15 +19,17 @@ from ..metrics import Observation
 class ShortVideoAdapter:
     SUPPORTED_PLATFORMS = ("youtube", "instagram")
 
-    def __init__(self, platform: str, seed: Optional[int] = None) -> None:
+    def __init__(self, platform: str, seed: Optional[int] = None,
+                 clock: Clock = system_clock) -> None:
         if platform not in self.SUPPORTED_PLATFORMS:
             raise ValueError(f"Unsupported platform {platform!r}. "
                              f"Choose from {self.SUPPORTED_PLATFORMS}.")
         self.platform = platform
         self._rng = random.Random(seed)
+        self._clock = clock
 
     def collect_observations(self, experiment: Experiment) -> list[Observation]:
-        now = datetime.now(timezone.utc).isoformat()
+        now = self._clock().isoformat()
         observations = []
         for item in experiment.items:
             observations.append(Observation(

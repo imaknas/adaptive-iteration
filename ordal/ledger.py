@@ -1,6 +1,6 @@
-"""ledger.py — Append-only JSONL ledger, the single source of truth.
+"""ledger.py — The append-only ledger, the single source of truth.
 
-Every line is one event with an envelope {"schema": 2, "kind": ..., "recorded_at": ...}:
+Every event has an envelope {"schema": 2, "kind": ..., "recorded_at": ...}:
 
     experiment          an Experiment definition (Experiment.to_dict())
     experiment_started  {"experiment_id", "at"}
@@ -13,58 +13,51 @@ Every line is one event with an envelope {"schema": 2, "kind": ..., "recorded_at
     applied             {"experiment_id", "variant", "outcome"}: a verdict put into effect
     abandoned           {"experiment_id", "reason"}: closed without a verdict (lifecycle.py)
 
-Nothing is ever rewritten; state is derived by replaying events. A v0.1 ledger
-(a single JSON array) opens read-only — convert it with ordal.migrate.
-Ledger(None) keeps events in memory only (used by replay).
+Nothing is ever rewritten; state is derived by replaying events. Where events are
+kept is an EventLog (eventlog.py); when "now" is comes from a Clock (clock.py).
 """
 from __future__ import annotations
 
-import json
-from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Iterable, Optional
+from typing import Any, Iterable, Optional, Union
 
+from .clock import Clock, system_clock
 from .decision import Decision
+from .eventlog import SCHEMA, EventLog, JsonlFile, LedgerReadOnlyError, MemoryLog
 from .experiment import Experiment
 from .metrics import Observation
 
-SCHEMA = 2
+__all__ = ["Ledger", "LedgerReadOnlyError", "SCHEMA"]
 
 
-def utcnow_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
-
-
-class LedgerReadOnlyError(RuntimeError):
-    pass
+def _as_log(log: Union[EventLog, Path, str, None]) -> EventLog:
+    """A path means a JSONL file there; None means memory only."""
+    if log is None:
+        return MemoryLog()
+    if isinstance(log, (str, Path)):
+        return JsonlFile(log)
+    return log
 
 
 class Ledger:
-    def __init__(self, path: Optional[Path]) -> None:
-        self.path = Path(path) if path is not None else None
-        self._events: list[dict[str, Any]] = []
-        self.read_only = False
-        if self.path is not None and self.path.exists():
-            text = self.path.read_text(encoding="utf-8")
-            if text.lstrip().startswith("["):
-                self.read_only = True
-                self._events = [legacy_event(r) for r in json.loads(text)]
-            else:
-                self._events = [json.loads(line) for line in text.splitlines() if line.strip()]
+    def __init__(self, log: Union[EventLog, Path, str, None] = None, *,
+                 clock: Clock = system_clock) -> None:
+        self.log = _as_log(log)
+        self.clock = clock
+        self._events: list[dict[str, Any]] = self.log.load()
+
+    @property
+    def read_only(self) -> bool:
+        return self.log.read_only
+
+    def now(self) -> str:
+        return self.clock().isoformat()
 
     # ── Write ──────────────────────────────────────────────────────────────────
 
     def _append(self, kind: str, payload: dict[str, Any]) -> dict[str, Any]:
-        if self.read_only:
-            raise LedgerReadOnlyError(
-                f"{self.path} is a v0.1 ledger (JSON array); convert it with "
-                "ordal.migrate.v1_to_v2() before writing"
-            )
-        event = {"schema": SCHEMA, "kind": kind, "recorded_at": utcnow_iso(), **payload}
-        if self.path is not None:
-            self.path.parent.mkdir(parents=True, exist_ok=True)
-            with self.path.open("a", encoding="utf-8") as f:
-                f.write(json.dumps(event, ensure_ascii=False) + "\n")
+        event = {"schema": SCHEMA, "kind": kind, "recorded_at": self.now(), **payload}
+        self.log.append(event)            # raises LedgerReadOnlyError for a v0.1 file
         self._events.append(event)
         return event
 
@@ -77,7 +70,7 @@ class Ledger:
         if self.experiment(experiment_id) is None:
             raise KeyError(experiment_id)
         self._append("experiment_started", {"experiment_id": experiment_id,
-                                             "at": at or utcnow_iso()})
+                                             "at": at or self.now()})
 
     def record_observation(self, obs: Observation) -> None:
         if self.experiment(obs.experiment_id) is None:
@@ -187,19 +180,4 @@ class Ledger:
 
     def __repr__(self) -> str:
         mode = ", read_only" if self.read_only else ""
-        return f"Ledger(path={self.path!r}, events={len(self._events)}{mode})"
-
-
-def legacy_event(record: dict[str, Any]) -> dict[str, Any]:
-    """Wrap a v0.1 ledger record as a v2 legacy_arm_summary event."""
-    return {
-        "schema": SCHEMA,
-        "kind": "legacy_arm_summary",
-        "recorded_at": record.get("timestamp"),
-        "domain": record.get("domain"),
-        "experiment_id": record.get("experiment_id"),
-        "variable": record.get("variable"),
-        "variant": record.get("variant"),
-        "metric_values": record.get("metric_values", {}),
-        "winner": record.get("winner"),
-    }
+        return f"Ledger({self.log.describe()}, events={len(self._events)}{mode})"

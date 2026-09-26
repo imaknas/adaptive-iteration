@@ -14,11 +14,12 @@ from __future__ import annotations
 import math
 import statistics
 from dataclasses import asdict
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Optional, Union
 
 from .assignment import assign as _assign
+from .clock import parse_time
 from .decision import Decision, Outcome
 from .domain import DomainConfig, config_for, current_config, save_config
 from .evidence import build_evidence
@@ -38,10 +39,6 @@ PathLike = Union[str, Path]
 
 class ServiceError(ValueError):
     """A request that cannot be carried out; the message says how to fix it."""
-
-
-def _now() -> datetime:
-    return datetime.now(timezone.utc)
 
 
 def _open(ledger: PathLike) -> Ledger:
@@ -230,7 +227,7 @@ def record_observations(ledger: PathLike, observations: list[dict[str, Any]]
     """Record one row per unit. All rows are validated first; if any is invalid,
     nothing is written. Missing metrics must be null, never 0."""
     led = _open(ledger)
-    now = _now().isoformat()
+    now = led.now()
     parsed: list[Observation] = []
     errors: list[str] = []
     for i, row in enumerate(observations):
@@ -291,9 +288,7 @@ def _decision_dict(d: Decision, exp: Experiment, cfg: DomainConfig) -> dict[str,
     out["closed"] = d.outcome.is_final
     out["next_action"] = _NEXT[d.outcome].format(a=exp.variant_a.label, b=exp.variant_b.label)
     if not d.outcome.is_final and exp.started:
-        started = datetime.fromisoformat(exp.started)
-        started = started if started.tzinfo else started.replace(tzinfo=timezone.utc)
-        nxt = started + timedelta(days=cfg.window_days) * (d.checkpoint + 1)
+        nxt = parse_time(exp.started) + timedelta(days=cfg.window_days) * (d.checkpoint + 1)
         out["next_checkpoint"] = nxt.isoformat()
         if d.needed_n:
             out["next_action"] += f"; about {d.needed_n} more units per variant likely needed"
@@ -306,9 +301,7 @@ def evaluate(ledger: PathLike, experiment_id: Optional[str] = None, *,
     """Judge one experiment, or every running experiment in *domain*. Safe to call as
     often as you like: verdicts are only taken (and recorded once) at checkpoints."""
     led = _open(ledger)
-    at = datetime.fromisoformat(now) if now else _now()
-    if at.tzinfo is None:
-        at = at.replace(tzinfo=timezone.utc)
+    at = parse_time(now) if now else led.clock()
     if experiment_id:
         exp = led.experiment(experiment_id)
         if exp is None:
