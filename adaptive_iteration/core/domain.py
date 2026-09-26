@@ -84,6 +84,9 @@ def current_config(ledger: Ledger, domain: str) -> Optional[DomainConfig]:
 def config_for(ledger: Ledger, experiment: Experiment) -> Optional[DomainConfig]:
     """Settings in effect when *experiment* started. If the domain was configured only
     afterwards, the first configuration recorded applies (never a later edit)."""
+    # read the ledger's copy: a stale Experiment object (e.g. created before start)
+    # would otherwise make a started experiment look unstarted and get newer settings
+    experiment = ledger.experiment(experiment.id) or experiment
     history = config_history(ledger, experiment.domain)
     if not history:
         return None

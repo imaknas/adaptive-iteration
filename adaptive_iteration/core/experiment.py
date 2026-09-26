@@ -68,6 +68,7 @@ class Experiment:
     items: list[dict[str, Any]] = field(default_factory=list)
     proposed_by: Optional[str] = None       # which proposer suggested it (track record)
     expected_effect: Optional[float] = None  # the proposer's own estimate, in metric units
+    restart_of: Optional[str] = None        # id of the abandoned experiment this restarts
 
     def to_dict(self) -> dict:
         return {
@@ -85,6 +86,7 @@ class Experiment:
             "items":       self.items,
             "proposed_by": self.proposed_by,
             "expected_effect": self.expected_effect,
+            "restart_of": self.restart_of,
         }
 
     @classmethod
@@ -104,6 +106,7 @@ class Experiment:
             items=d.get("items", []),
             proposed_by=d.get("proposed_by"),
             expected_effect=d.get("expected_effect"),
+            restart_of=d.get("restart_of"),
         )
 
 

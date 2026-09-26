@@ -25,6 +25,8 @@ from .core.evidence import build_evidence
 from .core.experiment import Experiment, Variant
 from .core.hypothesis import HypothesisEngine, Proposal, ReviewedProposal
 from .core.ledger import Ledger
+from .core.lifecycle import abandon as _abandon
+from .core.lifecycle import restart as _restart
 from .core.metrics import MetricSpec, Observation
 from .core.registry import VariableDef, VariableRegistry
 from .core.screening import Screening
@@ -78,7 +80,7 @@ def configure(ledger: PathLike, domain: str, metric: str, min_effect: float, *,
     except ValueError as e:
         raise ServiceError(str(e)) from e
     save_config(led, cfg)
-    running = [e.id for e in led.experiments(domain) if led.final_decision(e.id) is None
+    running = [e.id for e in led.experiments(domain) if led.is_open(e.id)
                and e.started]
     return {"config": cfg.to_dict(),
             "note": ("applies to experiments started from now on"
@@ -193,6 +195,8 @@ def start_experiment(ledger: PathLike, experiment_id: str,
         raise ServiceError(f"unknown experiment {experiment_id!r}")
     if exp.started:
         raise ServiceError(f"experiment {experiment_id} already started at {exp.started}")
+    if led.abandoned(experiment_id) is not None:
+        raise ServiceError(f"experiment {experiment_id} was abandoned")
     led.start_experiment(experiment_id, at=started_at)
     return _experiment_dict(led, led.experiment(experiment_id))
 
@@ -202,8 +206,10 @@ def _experiment_dict(led: Ledger, exp: Experiment) -> dict[str, Any]:
     return {"id": exp.id, "domain": exp.domain, "variable": exp.variable,
             "description": exp.description, "variant_a": exp.variant_a.label,
             "variant_b": exp.variant_b.label, "mode": exp.mode, "started": exp.started,
-            "status": ("not_started" if not exp.started
+            "status": ("abandoned" if led.abandoned(exp.id) is not None
+                       else "not_started" if not exp.started
                        else "closed" if final is not None else "running"),
+            "restart_of": exp.restart_of,
             "outcome": final.outcome.value if final else None,
             "observations": len(led.observations(exp.id))}
 
@@ -223,8 +229,8 @@ def record_observations(ledger: PathLike, observations: list[dict[str, Any]]
             exp = led.experiment(row["experiment_id"])
             if exp is None:
                 raise ServiceError(f"unknown experiment {row['experiment_id']!r}")
-            if led.final_decision(exp.id) is not None:
-                raise ServiceError(f"experiment {exp.id} is closed")
+            if not led.is_open(exp.id):
+                raise ServiceError(f"experiment {exp.id} is closed or abandoned")
             if row["variant"] not in (exp.variant_a.label, exp.variant_b.label):
                 raise ServiceError(f"variant {row['variant']!r} is not "
                                    f"{exp.variant_a.label!r} or {exp.variant_b.label!r}")
@@ -300,7 +306,7 @@ def evaluate(ledger: PathLike, experiment_id: Optional[str] = None, *,
         targets = [exp]
     elif domain:
         targets = [e for e in led.experiments(domain) if e.started
-                   and led.final_decision(e.id) is None]
+                   and led.is_open(e.id)]
     else:
         raise ServiceError("give an experiment_id or a domain")
     results = []
@@ -434,3 +440,29 @@ def mark_applied(ledger: PathLike, experiment_id: str) -> dict[str, Any]:
     except ValueError as e:
         raise ServiceError(str(e)) from e
     return {"experiment_id": experiment_id, "variant": variant, "outcome": d.outcome.value}
+
+
+# ── Lifecycle ──────────────────────────────────────────────────────────────────
+
+def abandon_experiment(ledger: PathLike, experiment_id: str, reason: str) -> dict[str, Any]:
+    """Close an experiment with no verdict (its data is no longer comparable, or it was
+    set up wrong). It is never judged or applied and frees its variable and slot."""
+    led = _open(ledger)
+    try:
+        _abandon(led, experiment_id, reason)
+    except (KeyError, ValueError) as e:
+        raise ServiceError(str(e).strip("'\"")) from e
+    return _experiment_dict(led, led.experiment(experiment_id))
+
+
+def restart_experiment(ledger: PathLike, experiment_id: str, reason: str, *,
+                       at: Optional[str] = None, start: bool = True) -> dict[str, Any]:
+    """Abandon an experiment and register it again from *at* (default now) — e.g. after
+    the pipeline changed mid-experiment. Only data from after *at* will count."""
+    led = _open(ledger)
+    try:
+        new = _restart(led, experiment_id, reason, at=at, start=start)
+    except (KeyError, ValueError) as e:
+        raise ServiceError(str(e).strip("'\"")) from e
+    return {"abandoned": _experiment_dict(led, led.experiment(experiment_id)),
+            "experiment": _experiment_dict(led, new)}

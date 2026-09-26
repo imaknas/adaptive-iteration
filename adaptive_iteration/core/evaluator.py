@@ -51,6 +51,8 @@ class Evaluator:
         final = self.ledger.final_decision(experiment_id)
         if final is not None:
             return final
+        if self.ledger.abandoned(experiment_id) is not None:
+            raise ValueError(f"experiment {experiment_id} was abandoned; it has no verdict")
 
         a, b, excluded = self.samples(experiment_id, spec, exp.variant_a.label,
                                       exp.variant_b.label)

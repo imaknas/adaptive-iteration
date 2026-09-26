@@ -42,8 +42,9 @@ Rules you must follow:
 - Missing metric values are null, never 0.
 - Record every unit, one row each; never pre-aggregate or drop unfavourable units.
 - Get every unit's variant from assign_variant; never choose it yourself.
-- Change nothing else about the pipeline while an experiment runs; if something
-  else changes, tell the user — results spanning the change are confounded.
+- Change nothing else about the pipeline while an experiment runs. If something
+  else does change (model, prompt, config), call restart_experiment so only data
+  from after the change counts, and tell the user. Never continue across the change.
 - configure() does not change running experiments; don't use it to rescue one.
 """
 
@@ -155,6 +156,21 @@ def build_server(ledger: str) -> Any:
     def mark_applied(experiment_id: str) -> dict[str, Any]:
         """Record that a closed experiment's verdict is now in effect in the pipeline."""
         return service.mark_applied(ledger, experiment_id)
+
+    @server.tool()
+    @guard
+    def abandon_experiment(experiment_id: str, reason: str) -> dict[str, Any]:
+        """Close an experiment with no verdict (its data is no longer comparable, or it
+        was set up wrong). Never judged or applied; frees its variable and slot."""
+        return service.abandon_experiment(ledger, experiment_id, reason)
+
+    @server.tool()
+    @guard
+    def restart_experiment(experiment_id: str, reason: str, at: Optional[str] = None
+                           ) -> dict[str, Any]:
+        """Abandon a running experiment and start it again from *at* (ISO, default now),
+        e.g. after the pipeline changed. Only data from after the restart counts."""
+        return service.restart_experiment(ledger, experiment_id, reason, at=at)
 
     @server.tool(annotations=read_only)
     @guard

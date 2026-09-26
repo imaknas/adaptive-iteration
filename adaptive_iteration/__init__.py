@@ -26,12 +26,13 @@ from .core.evidence import EvidenceSummary, VariableEvidence, build_evidence
 from .core.experiment import Experiment, Variant
 from .core.hypothesis import HypothesisEngine, Proposal, Proposer, ReviewedProposal
 from .core.ledger import Ledger
+from .core.lifecycle import abandon, restart
 from .core.metrics import MetricSpec, Observation
 from .core.registry import DuplicateDetector, TokenSetDetector, VariableDef, VariableRegistry
 from .core.screening import Screening, estimate_capacity
 from .loop import Assignment, Loop, TickReport
 
-__version__ = "0.7.0"
+__version__ = "0.8.0"
 
 __all__ = [
     "Decision", "DecisionContext", "DecisionRule", "Outcome", "PairedProportionRule",
@@ -40,5 +41,5 @@ __all__ = [
     "HypothesisEngine", "Proposal", "Proposer", "ReviewedProposal", "Ledger",
     "MetricSpec", "Observation", "DuplicateDetector", "TokenSetDetector", "VariableDef",
     "VariableRegistry", "assign", "Screening", "estimate_capacity", "Assignment", "Loop",
-    "TickReport",
+    "TickReport", "abandon", "restart",
 ]

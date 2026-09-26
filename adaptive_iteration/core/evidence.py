@@ -16,7 +16,7 @@ from .metrics import MetricSpec
 from .registry import VariableDef, VariableRegistry
 
 Status = Literal["untested", "open", "concluded", "equivalent", "no_detectable_diff",
-                 "legacy_unverified"]
+                 "abandoned", "legacy_unverified"]
 
 
 @dataclass(frozen=True)
@@ -119,7 +119,7 @@ def build_evidence(ledger: Ledger, domain: str, spec: MetricSpec) -> EvidenceSum
     for name in sorted(n for n in names if n):
         exps = by_var.get(name, [])
         n_obs = sum(len(ledger.observations(e.id)) for e in exps)
-        still_open = [e.id for e in exps if ledger.final_decision(e.id) is None]
+        still_open = [e.id for e in exps if ledger.is_open(e.id)]
         open_ids += still_open
         finals = [(ledger.final_decision(e.id), e) for e in exps]
         finals = [(d, e) for d, e in finals if d is not None]
@@ -138,6 +138,8 @@ def build_evidence(ledger: Ledger, domain: str, spec: MetricSpec) -> EvidenceSum
                 best = e.variant_b.label
             elif d.outcome is Outcome.A_BETTER:
                 best = e.variant_a.label
+        elif exps:
+            status = "abandoned"            # every experiment on it was abandoned
         elif legacy_by_var.get(name):
             status = "legacy_unverified"
             n_obs = legacy_by_var[name]
@@ -196,6 +198,7 @@ def _track_record(ledger: Ledger, experiments: list) -> dict[str, dict[str, Opti
     for name, exps in groups.items():
         finals = [(e, ledger.final_decision(e.id)) for e in exps]
         closed = [(e, d) for e, d in finals if d is not None]
+        abandoned = sum(ledger.abandoned(e.id) is not None for e in exps)
         b_won = sum(d.outcome is Outcome.B_BETTER for _, d in closed)
         a_won = sum(d.outcome is Outcome.A_BETTER for _, d in closed)
         units = sum(len(ledger.observations(e.id)) for e, _ in closed)
@@ -205,6 +208,7 @@ def _track_record(ledger: Ledger, experiments: list) -> dict[str, dict[str, Opti
             "proposed": float(len(exps)), "closed": float(len(closed)),
             "challenger_won": float(b_won), "control_won": float(a_won),
             "no_difference": float(len(closed) - b_won - a_won),
+            "abandoned": float(abandoned),
             "units_per_decisive": units / (a_won + b_won) if a_won + b_won else None,
             "effect_ratio": statistics.median(ratios) if ratios else None,
         }

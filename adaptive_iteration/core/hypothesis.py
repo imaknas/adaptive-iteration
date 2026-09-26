@@ -79,7 +79,7 @@ class HypothesisEngine:
         open_vars = {
             registry.resolve(e.variable) or e.variable
             for e in self.ledger.experiments(domain=domain)
-            if self.ledger.final_decision(e.id) is None
+            if self.ledger.is_open(e.id)
         }
         capacity = (estimate_capacity(self.ledger, domain, spec, self.screening)
                      if self.screening else None)

@@ -91,7 +91,8 @@ loop = Loop(ledger, "shorts",
             apply=put_into_pipeline,                   # (experiment, variant, decision)
             proposer=my_proposer,
             max_concurrent=1,
-            require_approval=True)                     # hold B-wins for a human
+            require_start_approval=True,               # new experiments wait for a human
+            require_approval=True)                     # so do B-wins before they apply
 
 # while producing each unit: which variant of each running experiment it gets
 for a in loop.variant_for(unit_id="video-0412", stratum="money"):
@@ -107,6 +108,20 @@ it is **screened**: from the proposer's `expected_effect`, the domain's own spre
 and its weekly volume, the loop estimates how long a verdict would take, and turns
 away proposals that could never be detected in time or aren't worth acting on even
 if right.
+
+With `require_start_approval`, accepted proposals hold their slot until
+`loop.approve_start(id)` (or `loop.reject_start(id)`); nothing is assigned or
+collected before that.
+
+If the pipeline changes under a running experiment (new model, prompt or config),
+data from before and after can't be compared. `loop.restart(id, reason)` abandons
+the experiment and starts the same one again, judged only on data from after the
+change and under the settings in effect from then on. `loop.abandon(id, reason)`
+drops one with no verdict. Neither is ever applied.
+
+A copy of the ledger file plus `apply` as a no-op and a proposer that returns `[]`
+runs the loop in **shadow**: it judges and reports what it would apply, and changes
+nothing.
 
 Nobody can know in advance whether a hypothesis is right, but a proposer's record
 shows over time. `evidence()` keeps one per proposer: how its experiments ended, what

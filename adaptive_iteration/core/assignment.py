@@ -27,7 +27,7 @@ def assign(ledger: Ledger, experiment_id: str, unit_id: str,
                          "there is nothing to assign")
     if not exp.started:
         raise ValueError(f"experiment {experiment_id} has not started")
-    if ledger.final_decision(experiment_id) is not None:
+    if not ledger.is_open(experiment_id):
         raise ValueError(f"experiment {experiment_id} is closed")
 
     existing = ledger.assignment(experiment_id, unit_id)

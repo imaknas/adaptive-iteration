@@ -128,6 +128,16 @@ def build_parser() -> argparse.ArgumentParser:
     ma = sub.add_parser("mark-applied", help="record that a verdict is now in effect")
     ma.add_argument("--experiment", required=True)
 
+    ab = sub.add_parser("abandon", help="close an experiment with no verdict")
+    ab.add_argument("--experiment", required=True)
+    ab.add_argument("--reason", required=True)
+
+    rs = sub.add_parser("restart", help="abandon an experiment and start it again")
+    rs.add_argument("--experiment", required=True)
+    rs.add_argument("--reason", required=True)
+    rs.add_argument("--at", help="new start time (ISO; default now)")
+    rs.add_argument("--no-start", action="store_true")
+
     sub.add_parser("mcp", help="serve these operations over MCP on stdio")
     return p
 
@@ -189,6 +199,11 @@ def run(args: argparse.Namespace) -> Any:
         return service.pending(L, args.domain)
     if args.command == "mark-applied":
         return service.mark_applied(L, args.experiment)
+    if args.command == "abandon":
+        return service.abandon_experiment(L, args.experiment, args.reason)
+    if args.command == "restart":
+        return service.restart_experiment(L, args.experiment, args.reason, at=args.at,
+                                          start=not args.no_start)
     raise service.ServiceError(f"unknown command {args.command}")
 
 

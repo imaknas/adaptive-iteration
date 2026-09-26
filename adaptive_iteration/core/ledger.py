@@ -11,6 +11,7 @@ Every line is one event with an envelope {"schema": 2, "kind": ..., "recorded_at
     legacy_arm_summary  a v0.1 record (arm average + caller-supplied winner flag)
     assignment          {"experiment_id", "unit_id", "variant", "stratum"} (core/assignment.py)
     applied             {"experiment_id", "variant", "outcome"}: a verdict put into effect
+    abandoned           {"experiment_id", "reason"}: closed without a verdict (core/lifecycle.py)
 
 Nothing is ever rewritten; state is derived by replaying events. A v0.1 ledger
 (a single JSON array) opens read-only — convert it with adaptive_iteration.migrate.
@@ -81,6 +82,8 @@ class Ledger:
     def record_observation(self, obs: Observation) -> None:
         if self.experiment(obs.experiment_id) is None:
             raise KeyError(f"unknown experiment {obs.experiment_id}")
+        if self.abandoned(obs.experiment_id) is not None:
+            raise ValueError(f"experiment {obs.experiment_id} was abandoned")
         assigned = self.assignment(obs.experiment_id, obs.unit_id)
         if assigned is not None and assigned != obs.variant:
             raise ValueError(f"unit {obs.unit_id!r} was assigned {assigned!r}, not "
@@ -157,6 +160,17 @@ class Ledger:
             raise ValueError(f"experiment {experiment_id} was already applied")
         self._append("applied", {"experiment_id": experiment_id, "variant": variant,
                                  "outcome": outcome})
+
+    def abandoned(self, experiment_id: str) -> Optional[dict[str, Any]]:
+        for e in self.of_kind("abandoned"):
+            if e["experiment_id"] == experiment_id:
+                return e
+        return None
+
+    def is_open(self, experiment_id: str) -> bool:
+        """Neither judged to a final verdict nor abandoned."""
+        return (self.final_decision(experiment_id) is None
+                and self.abandoned(experiment_id) is None)
 
     def applied(self, experiment_id: str) -> Optional[dict[str, Any]]:
         for e in self.of_kind("applied"):

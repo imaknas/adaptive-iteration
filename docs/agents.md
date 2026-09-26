@@ -62,6 +62,8 @@ connects, so no extra prompting is needed.
 | `assign_variant` | yes | which variant a unit gets; balanced within its stratum and recorded |
 | `pending` | no | `{"pending": [...]}`: closed verdicts not yet put into effect |
 | `mark_applied` | yes | record that a verdict is now in effect in the pipeline |
+| `restart_experiment` | yes | the pipeline changed mid-experiment: abandon it and start it again from now |
+| `abandon_experiment` | yes | close an experiment with no verdict (never judged or applied) |
 | `evidence` | no | what is known per variable, what it cost, and each proposer's track record |
 | `status` | no | experiments per domain |
 | `calibrate` | no | false-winner rate and detection rate on the domain's own data |
@@ -122,6 +124,7 @@ These hold no matter what the agent asks for:
 | Trusting an untested setup | `calibrate` measures false winners and detection on the domain's own data |
 | Picking variants by hand | `assign_variant` decides; an observation contradicting a unit's assignment is refused |
 | Starting experiments that can't finish | proposals with an `expected_effect` too small for the domain's volume are rejected |
+| Judging across a pipeline change | `restart_experiment` starts over; data from before the restart never counts |
 
 ## What the agent is still responsible for
 
@@ -129,8 +132,8 @@ The framework can't see your pipeline, so the agent must:
 
 - ask `assign_variant` for every unit's variant and use exactly that;
 - give every proposal an honest `expected_effect` and a `proposed_by` name;
-- change nothing else about the pipeline while an experiment runs, and tell the
-  user if something else does change;
+- change nothing else about the pipeline while an experiment runs; if something
+  else does change, call `restart_experiment` and tell the user;
 - record every unit, including the ones that did badly;
 - ask the user for `min_effect` rather than guessing it.
 

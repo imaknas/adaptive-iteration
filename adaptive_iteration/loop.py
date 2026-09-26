@@ -13,7 +13,12 @@ and calls tick() on a schedule (cron, or an agent). Each tick:
 3. puts closed verdicts into effect: the winner if one arm won, otherwise variant A
    (keep what you had). A B-win can be held for human approval (require_approval);
 4. fills free slots with new experiments from the proposer, after the usual review
-   plus a detectability screen based on the domain's own data.
+   plus a detectability screen based on the domain's own data. With
+   require_start_approval they wait, holding their slot, until approve_start().
+
+If the pipeline changes under a running experiment (new model, prompt or config
+version), call restart(): it abandons the old one and starts it again, so only data
+from after the change counts. abandon() drops an experiment without a verdict.
 
 While producing units, the pipeline asks variant_for(unit_id, stratum) which variant
 of each running experiment a unit gets, so assignment stays balanced and on record.
@@ -35,6 +40,7 @@ from .core.domain import DomainConfig, config_for, current_config
 from .core.experiment import Experiment, Variant
 from .core.hypothesis import HypothesisEngine, Proposer
 from .core.ledger import Ledger
+from .core.lifecycle import abandon, restart
 from .core.metrics import Observation
 from .core.registry import DuplicateDetector
 from .core.screening import Screening
@@ -58,6 +64,7 @@ class TickReport:
     applied: list[dict[str, Any]] = field(default_factory=list)
     awaiting_approval: list[dict[str, Any]] = field(default_factory=list)
     started: list[dict[str, Any]] = field(default_factory=list)
+    awaiting_start: list[dict[str, Any]] = field(default_factory=list)
     proposals: list[dict[str, Any]] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
 
@@ -73,7 +80,7 @@ def _parse(ts: str) -> datetime:
 class Loop:
     def __init__(self, ledger: Ledger, domain: str, *, collect: Collect, apply: Apply,
                  proposer: Proposer, max_concurrent: int = 1, proposals_per_tick: int = 3,
-                 require_approval: bool = False,
+                 require_approval: bool = False, require_start_approval: bool = False,
                  duplicates: Optional[DuplicateDetector] = None) -> None:
         if current_config(ledger, domain) is None:
             raise ValueError(f"domain {domain!r} is not configured; save a DomainConfig first")
@@ -87,13 +94,19 @@ class Loop:
         self.max_concurrent = max_concurrent
         self.proposals_per_tick = proposals_per_tick
         self.require_approval = require_approval
+        self.require_start_approval = require_start_approval
         self.duplicates = duplicates
 
     # ── State ───────────────────────────────────────────────────────────────────
 
     def running(self) -> list[Experiment]:
         return [e for e in self.ledger.experiments(self.domain)
-                if e.started and self.ledger.final_decision(e.id) is None]
+                if e.started and self.ledger.is_open(e.id)]
+
+    def not_started(self) -> list[Experiment]:
+        """Accepted experiments waiting to start (they hold a slot)."""
+        return [e for e in self.ledger.experiments(self.domain)
+                if not e.started and self.ledger.is_open(e.id)]
 
     def unapplied(self) -> list[tuple[Experiment, Decision]]:
         out = []
@@ -143,9 +156,10 @@ class Loop:
                 continue
             self._apply(exp, d, report)
 
-        free = self.max_concurrent - len(self.running())
+        free = self.max_concurrent - len(self.running()) - len(self.not_started())
         if free > 0:
             self._start_new(free, now, report)
+        report.awaiting_start = [self._plan(e) for e in self.not_started()]
         return report
 
     def approve(self, experiment_id: str) -> None:
@@ -159,7 +173,37 @@ class Loop:
         if report.errors:
             raise RuntimeError(report.errors[0])
 
+    def approve_start(self, experiment_id: str, at: Optional[datetime] = None) -> None:
+        """Start an experiment that was held by require_start_approval."""
+        exp = self._waiting(experiment_id)
+        self.ledger.start_experiment(exp.id, at=(at or datetime.now(timezone.utc)).isoformat())
+
+    def reject_start(self, experiment_id: str, reason: str = "rejected before start") -> None:
+        """Drop an experiment that was held by require_start_approval."""
+        abandon(self.ledger, self._waiting(experiment_id).id, reason)
+
+    def abandon(self, experiment_id: str, reason: str) -> None:
+        abandon(self.ledger, experiment_id, reason)
+
+    def restart(self, experiment_id: str, reason: str,
+                at: Optional[datetime] = None) -> Experiment:
+        """Abandon a running experiment and start it again from *at* (default now)."""
+        return restart(self.ledger, experiment_id, reason,
+                       at=(at or datetime.now(timezone.utc)).isoformat())
+
     # ── Internals ─────────────────────────────────────────────────────────────
+
+    def _waiting(self, experiment_id: str) -> Experiment:
+        for exp in self.not_started():
+            if exp.id == experiment_id:
+                return exp
+        raise ValueError(f"{experiment_id} is not waiting to start")
+
+    @staticmethod
+    def _plan(exp: Experiment) -> dict[str, Any]:
+        return {"experiment_id": exp.id, "variable": exp.variable,
+                "variant_a": exp.variant_a.label, "variant_b": exp.variant_b.label,
+                "proposed_by": exp.proposed_by, "expected_effect": exp.expected_effect}
 
     def _collect(self, exp: Experiment, cfg: DomainConfig) -> int:
         """Record observations that are new, changed, or were read before maturing."""
@@ -210,10 +254,7 @@ class Loop:
             if free == 0 or not r.accepted:
                 continue
             exp = engine.accept(r)
-            self.ledger.start_experiment(exp.id, at=now.isoformat())
-            report.started.append({"experiment_id": exp.id, "variable": exp.variable,
-                                   "variant_a": exp.variant_a.label,
-                                   "variant_b": exp.variant_b.label,
-                                   "proposed_by": exp.proposed_by,
-                                   "expected_effect": exp.expected_effect})
+            if not self.require_start_approval:
+                self.ledger.start_experiment(exp.id, at=now.isoformat())
+                report.started.append(self._plan(exp))
             free -= 1
