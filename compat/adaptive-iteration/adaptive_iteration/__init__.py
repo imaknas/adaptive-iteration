@@ -27,12 +27,23 @@ _TOP = ["cli", "loop", "mcp_server", "migrate", "replay", "service",
 core = types.ModuleType(f"{__name__}.core", "former adaptive_iteration.core; see ordal")
 core.__path__ = []
 sys.modules[core.__name__] = core
+def _alias(new: str):
+    """ordal may drop modules the old package had; a missing one is skipped rather
+    than breaking every import of adaptive_iteration."""
+    try:
+        return importlib.import_module(f"ordal.{new}")
+    except ModuleNotFoundError:
+        return None
+
+
 for _name in _CORE:
-    _mod = importlib.import_module(f"ordal.{_name}")
-    sys.modules[f"{__name__}.core.{_name}"] = _mod
-    setattr(core, _name, _mod)
+    _mod = _alias(_name)
+    if _mod is not None:
+        sys.modules[f"{__name__}.core.{_name}"] = _mod
+        setattr(core, _name, _mod)
 for _name in _TOP:
-    _mod = importlib.import_module(f"ordal.{_name}")
-    sys.modules[f"{__name__}.{_name}"] = _mod
-    if "." not in _name:
-        globals()[_name] = _mod
+    _mod = _alias(_name)
+    if _mod is not None:
+        sys.modules[f"{__name__}.{_name}"] = _mod
+        if "." not in _name:
+            globals()[_name] = _mod
