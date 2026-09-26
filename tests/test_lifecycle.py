@@ -130,11 +130,12 @@ def test_loop_restart_mid_run_then_concludes(tmp_path):
 # ── shadow mode (the setup short-video asked about) ──────────────────────────
 
 def test_shadow_loop_on_a_copy_leaves_the_real_ledger_alone(tmp_path):
-    ledger = configured(tmp_path)
-    pipe = Pipeline(truth={"hook": 15.0}, seed=3)
-    live = Loop(ledger, "d", collect=pipe.collect, apply=pipe.apply, proposer=Ideas())
+    ledger = configured(tmp_path, max_windows=1)       # one checkpoint: a verdict is final
+    pipe = Pipeline(truth={"hook": 25.0}, seed=3)       # a clear effect, so the test isn't
+    live = Loop(ledger, "d", collect=pipe.collect,      # about statistical luck
+                apply=pipe.apply, proposer=Ideas())
     live.tick(now=pipe.now)
-    pipe.produce(live, 60)
+    pipe.produce(live, 120)
     pipe.now += timedelta(days=7)
     real_path = tmp_path / "l.jsonl"
     before = real_path.read_text()

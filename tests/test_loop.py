@@ -209,15 +209,33 @@ def test_loop_finds_the_real_improvement_and_moves_on(tmp_path):
     loop.tick(now=pipe.now)                              # starts the first experiment
     reports = run(loop, pipe, weeks=14)
     assert pipe.config.get("hook") == "b"                # real +15 found and adopted
-    assert pipe.config.get("thumbnail") in (None, "a")   # no effect → never adopts B
-    assert pipe.config.get("cta") in (None, "a")
-    started_vars = [s["variable"] for r in reports for s in r["started"]] \
-        if isinstance(reports[0], dict) else [s["variable"] for r in reports for s in r.started]
+    # (whether no-effect changes get adopted is a rate, tested across many runs below)
+    started_vars = [s["variable"] for r in reports for s in r.started]
     assert "thumbnail" in started_vars                   # moved on by itself
     assert not any(r.errors for r in reports)
     exps = {e.variable: e for e in ledger.experiments("d")}
     assert exps["hook"].proposed_by == "ideas"
     assert ledger.final_decision(exps["hook"].id).rule_params.get("stratified") is True
+
+
+def test_loop_error_rates_across_many_runs(tmp_path, monkeypatch):
+    """One run can't show a rate. Across 60 independent pipelines (different data and
+    ids each time): the real +15 is adopted almost always, and changes with no real
+    effect are adopted at most about as often as the 5% false-positive budget allows."""
+    import uuid
+    ids = iter(range(1, 10**6))
+    monkeypatch.setattr(uuid, "uuid4", lambda: uuid.UUID(int=next(ids) << 96))
+    runs, hook_b, null_b = 60, 0, 0
+    for seed in range(runs):
+        ledger = configured(tmp_path / str(seed))
+        pipe = Pipeline(truth={"hook": 15.0, "thumbnail": 0.0, "cta": 0.0}, seed=seed)
+        loop = Loop(ledger, "d", collect=pipe.collect, apply=pipe.apply, proposer=Ideas())
+        loop.tick(now=pipe.now)
+        run(loop, pipe, weeks=14)
+        hook_b += pipe.config.get("hook") == "b"
+        null_b += (pipe.config.get("thumbnail") == "b") + (pipe.config.get("cta") == "b")
+    assert hook_b / runs >= 0.95
+    assert null_b / (2 * runs) <= 0.06
 
 
 def test_loop_holds_a_b_win_for_approval(tmp_path):
