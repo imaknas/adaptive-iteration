@@ -41,11 +41,14 @@ def test_lower_is_better_flips_direction():
     assert r.outcome is Outcome.A_BETTER and r.effect < 0
 
 
-def test_rejects_non_binary_and_paired():
+def test_rejects_non_binary_and_delegates_paired():
     with pytest.raises(ValueError):
         PROP.decide(Sample((0.0, 0.5, 1.0, 1.0, 0.0)), bern(2, 5), REPLY, ctx())
-    with pytest.raises(ValueError):
-        PROP.decide(bern(2, 5), bern(2, 5), REPLY, ctx(paired=True))
+    ids = tuple(str(i) for i in range(5))
+    a = Sample((1.0, 0.0, 1.0, 0.0, 0.0), pair_ids=ids)
+    b = Sample((1.0, 1.0, 1.0, 0.0, 1.0), pair_ids=ids)
+    r = PROP.decide(a, b, REPLY, ctx(paired=True))
+    assert r.params["pairs"] == 5               # handled by PairedProportionRule
 
 
 def test_newcombe_matches_published_example():

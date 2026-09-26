@@ -11,9 +11,13 @@ results are judged by a DecisionRule (default: WelchIntervalRule).
 """
 from .core.decision import (
     Decision,
+    DecisionContext,
     DecisionRule,
     Outcome,
+    PairedProportionRule,
     ProportionIntervalRule,
+    RuleResult,
+    Sample,
     WelchIntervalRule,
 )
 from .core.evaluator import Evaluator
@@ -24,10 +28,11 @@ from .core.ledger import Ledger
 from .core.metrics import MetricSpec, Observation
 from .core.registry import DuplicateDetector, TokenSetDetector, VariableDef, VariableRegistry
 
-__version__ = "0.4.1"
+__version__ = "0.5.0"
 
 __all__ = [
-    "Decision", "DecisionRule", "Outcome", "ProportionIntervalRule", "WelchIntervalRule", "Evaluator",
+    "Decision", "DecisionContext", "DecisionRule", "Outcome", "PairedProportionRule",
+    "ProportionIntervalRule", "RuleResult", "Sample", "WelchIntervalRule", "Evaluator",
     "EvidenceSummary", "VariableEvidence", "build_evidence", "Experiment", "Variant",
     "HypothesisEngine", "Proposal", "Proposer", "ReviewedProposal", "Ledger",
     "MetricSpec", "Observation", "DuplicateDetector", "TokenSetDetector", "VariableDef",

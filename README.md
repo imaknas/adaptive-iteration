@@ -116,10 +116,34 @@ false "equivalent".
 Evaluator(ledger, rule=ProportionIntervalRule())
 ```
 
+**Paired 0/1 outcomes** (the same item scored under A and under B: a fact recalled
+or not after two policies, one email in two versions) use `PairedProportionRule`,
+Newcombe's paired score interval. Units are matched by `pair_id`, and a small sample
+where A and B always agree reads as "not enough evidence", never as "equivalent".
+`ProportionIntervalRule` switches to it automatically for paired experiments.
+
 **Groups of units** that differ a lot on their own (topics, audience segments) can
 be tagged with `Observation(..., stratum="money")`. `WelchIntervalRule` then
 compares the arms within each group and combines the results, so an uneven mix of
 groups between the arms cannot pose as an effect.
+
+**Judging a finished batch in one look.** For offline experiments (every unit
+already scored, no weekly schedule), call a rule directly and skip the Evaluator:
+
+```python
+from adaptive_iteration import DecisionContext, MetricSpec, PairedProportionRule, Sample
+
+ids = ("fact1", "fact2", ...)                    # same order in both arms
+a = Sample(values=(1.0, 0.0, ...), pair_ids=ids)  # policy A: recalled?
+b = Sample(values=(1.0, 1.0, ...), pair_ids=ids)  # policy B
+r = PairedProportionRule().decide(
+    a, b, MetricSpec(name="recalled", min_effect=0.10),
+    DecisionContext("batch-1", paired=True, checkpoint=1, max_checkpoints=1))
+print(r.outcome, r.effect, r.interval, r.reason)
+```
+
+`max_checkpoints=1` means the full alpha is spent on this single look. If you will
+look again after adding more data, set it to the total number of looks you plan.
 
 To use a different rule (Bayesian, sequential, domain-specific), pass any object
 with `name` and `decide(a, b, spec, ctx) -> RuleResult`:

@@ -272,7 +272,8 @@ class ProportionIntervalRule:
     Unlike a t interval it stays honest when events are rare — zero successes in both
     arms gives a wide interval, not a collapsed one. Outcomes, superiority and the
     Bonferroni split work exactly as in WelchIntervalRule. min_effect is in proportion
-    units (0.10 = ten percentage points). Interleaved experiments only; strata ignored.
+    units (0.10 = ten percentage points). Strata are ignored. Paired experiments are
+    handed to PairedProportionRule with the same settings.
     """
     alpha: float = 0.05
     min_n: int = 5
@@ -285,7 +286,8 @@ class ProportionIntervalRule:
 
     def decide(self, a: Sample, b: Sample, spec: MetricSpec, ctx: DecisionContext) -> RuleResult:
         if ctx.paired:
-            raise ValueError("ProportionIntervalRule does not support paired experiments")
+            return PairedProportionRule(alpha=self.alpha, min_n=self.min_n, power=self.power,
+                                        superiority=self.superiority).decide(a, b, spec, ctx)
         for v in (*a.values, *b.values):
             if v not in (0.0, 1.0):
                 raise ValueError(f"ProportionIntervalRule needs 0/1 values, got {v!r}")
@@ -319,6 +321,105 @@ class ProportionIntervalRule:
         note = f" (p_a={p_a:.3g}, p_b={p_b:.3g})"
         return _classify(d, lo, hi, spec.min_effect, self.superiority, ctx, more,
                          confidence, params, note)
+
+
+@dataclass(frozen=True)
+class PairedProportionRule:
+    """For paired 0/1 outcomes: the same item scored under A and under B (a fact
+    recalled or not after two compaction policies; one email in two versions).
+
+    Interval for p(B) − p(A): Newcombe's hybrid score method for paired data
+    (Newcombe 1998, method 10), built from Wilson intervals for the two marginal
+    proportions and a continuity-corrected phi correlation. Units are matched by
+    pair_id; a unit whose partner is missing is left out and reported. With zero
+    discordant pairs the interval still has a finite, n-dependent width, so a small
+    all-agreeing sample never reads as "equivalent".
+    """
+    alpha: float = 0.05
+    min_n: int = 5
+    power: float = 0.8
+    superiority: Literal["significance", "margin"] = "significance"
+    name: str = "paired_proportion_interval"
+
+    def __post_init__(self) -> None:
+        _check_common(self.alpha, self.min_n, self.superiority)
+
+    def decide(self, a: Sample, b: Sample, spec: MetricSpec, ctx: DecisionContext) -> RuleResult:
+        for v in (*a.values, *b.values):
+            if v not in (0.0, 1.0):
+                raise ValueError(f"PairedProportionRule needs 0/1 values, got {v!r}")
+        pairs, unpaired = _match_pairs(a, b)
+        per_check_alpha = self.alpha / ctx.max_checkpoints
+        confidence = 1.0 - per_check_alpha
+        n = len(pairs)
+        f11 = sum(1 for va, vb in pairs if va == 1 and vb == 1)
+        f10 = sum(1 for va, vb in pairs if va == 0 and vb == 1)   # only B succeeded
+        f01 = sum(1 for va, vb in pairs if va == 1 and vb == 0)   # only A succeeded
+        f00 = n - f11 - f10 - f01
+        params = {"alpha": self.alpha, "min_n": self.min_n, "power": self.power,
+                  "superiority": self.superiority, "per_check_alpha": per_check_alpha,
+                  "min_effect": spec.min_effect, "pairs": n, "both": f11, "only_b": f10,
+                  "only_a": f01, "neither": f00, "unpaired_units": unpaired}
+        note = f"; {unpaired} unpaired units left out" if unpaired else ""
+        if n < self.min_n:
+            undecided = Outcome.NO_DETECTABLE_DIFF if ctx.is_last else Outcome.INSUFFICIENT
+            return RuleResult(undecided, f"{n} complete pairs < min_n={self.min_n}{note}",
+                              confidence=confidence, params=params, needed_n=self.min_n - n)
+
+        z = NormalDist().inv_cdf(1.0 - per_check_alpha / 2.0)
+        p_b, p_a = (f11 + f10) / n, (f11 + f01) / n
+        l_b, u_b = _wilson(p_b, n, z)
+        l_a, u_a = _wilson(p_a, n, z)
+        rho = _phi_cc(f11, f10, f01, f00)
+        w_lo = math.sqrt(max(0.0, (p_b - l_b) ** 2 - 2 * rho * (p_b - l_b) * (u_a - p_a)
+                             + (u_a - p_a) ** 2))
+        w_hi = math.sqrt(max(0.0, (p_a - l_a) ** 2 - 2 * rho * (p_a - l_a) * (u_b - p_b)
+                             + (u_b - p_b) ** 2))
+        d = p_b - p_a
+        lo, hi = d - w_lo, d + w_hi
+        if not spec.higher_is_better:
+            d, lo, hi = -d, -hi, -lo
+        params.update({"p_a": p_a, "p_b": p_b, "phi_cc": rho})
+
+        # McNemar-style sample size from the observed discordance rate (a real effect of
+        # min_effect needs at least that much discordance, so it is the floor).
+        delta = spec.min_effect
+        psi = max((f10 + f01) / n, delta)
+        z_b = NormalDist().inv_cdf(self.power)
+        needed = math.ceil((z * math.sqrt(psi) + z_b * math.sqrt(max(psi - delta ** 2, 0.0)))
+                           ** 2 / delta ** 2)
+        note = f" (pairs={n}, only A={f01}, only B={f10}){note}"
+        return _classify(d, lo, hi, delta, self.superiority, ctx, max(0, needed - n),
+                         confidence, params, note)
+
+
+def _match_pairs(a: Sample, b: Sample) -> tuple[list[tuple[float, float]], int]:
+    """(A value, B value) per pair_id, plus how many units had no partner."""
+    def by_pair(s: Sample, arm: str) -> dict[str, float]:
+        out: dict[str, float] = {}
+        for p, v in zip(s.pair_ids or (None,) * len(s.values), s.values):
+            if p is None:
+                continue
+            if p in out:
+                raise ValueError(f"pair_id {p!r} appears twice in arm {arm}")
+            out[p] = v
+        return out
+
+    pa, pb = by_pair(a, "A"), by_pair(b, "B")
+    shared = [p for p in pa if p in pb]
+    unpaired = (len(a.values) - len(shared)) + (len(b.values) - len(shared))
+    return [(pa[p], pb[p]) for p in shared], unpaired
+
+
+def _phi_cc(f11: int, f10: int, f01: int, f00: int) -> float:
+    """Continuity-corrected phi used by Newcombe's method 10 (0 if any margin is empty)."""
+    n = f11 + f10 + f01 + f00
+    margins = (f11 + f10) * (f01 + f00) * (f11 + f01) * (f10 + f00)
+    if margins == 0:
+        return 0.0
+    b = f11 * f00 - f10 * f01
+    c = b - n / 2 if b > n / 2 else (0.0 if b >= 0 else b)
+    return c / math.sqrt(margins)
 
 
 def _wilson(p: float, n: int, z: float) -> tuple[float, float]:

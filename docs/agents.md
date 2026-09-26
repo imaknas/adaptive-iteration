@@ -52,7 +52,7 @@ connects, so no extra prompting is needed.
 
 | Tool | Writes? | Purpose |
 |---|---|---|
-| `configure` | yes | metric, `min_effect`, rule and schedule for a domain |
+| `configure` | yes | metric, `min_effect`, rule and schedule for a domain (`rule="proportion"` covers paired 0/1 experiments too) |
 | `register_variable` | yes | name something you will vary |
 | `merge_variables` | yes | declare two names the same variable |
 | `review_proposals` | no | `{"reviewed": [...]}`: ideas checked against the registry and running experiments |
