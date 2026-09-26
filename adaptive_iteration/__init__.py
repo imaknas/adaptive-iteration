@@ -9,6 +9,7 @@ results are judged by a DecisionRule (default: WelchIntervalRule).
         HypothesisEngine, Proposal, VariableRegistry, VariableDef,
     )
 """
+from .core.assignment import assign
 from .core.decision import (
     Decision,
     DecisionContext,
@@ -27,8 +28,10 @@ from .core.hypothesis import HypothesisEngine, Proposal, Proposer, ReviewedPropo
 from .core.ledger import Ledger
 from .core.metrics import MetricSpec, Observation
 from .core.registry import DuplicateDetector, TokenSetDetector, VariableDef, VariableRegistry
+from .core.screening import Screening, estimate_capacity
+from .loop import Assignment, Loop, TickReport
 
-__version__ = "0.6.0"
+__version__ = "0.7.0"
 
 __all__ = [
     "Decision", "DecisionContext", "DecisionRule", "Outcome", "PairedProportionRule",
@@ -36,5 +39,6 @@ __all__ = [
     "EvidenceSummary", "VariableEvidence", "build_evidence", "Experiment", "Variant",
     "HypothesisEngine", "Proposal", "Proposer", "ReviewedProposal", "Ledger",
     "MetricSpec", "Observation", "DuplicateDetector", "TokenSetDetector", "VariableDef",
-    "VariableRegistry",
+    "VariableRegistry", "assign", "Screening", "estimate_capacity", "Assignment", "Loop",
+    "TickReport",
 ]

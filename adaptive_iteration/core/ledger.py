@@ -9,6 +9,8 @@ Every line is one event with an envelope {"schema": 2, "kind": ..., "recorded_at
     variable            {"domain", "name", "description", "aliases", "execution"}
     variable_alias      {"domain", "alias", "name"}
     legacy_arm_summary  a v0.1 record (arm average + caller-supplied winner flag)
+    assignment          {"experiment_id", "unit_id", "variant", "stratum"} (core/assignment.py)
+    applied             {"experiment_id", "variant", "outcome"}: a verdict put into effect
 
 Nothing is ever rewritten; state is derived by replaying events. A v0.1 ledger
 (a single JSON array) opens read-only — convert it with adaptive_iteration.migrate.
@@ -79,6 +81,10 @@ class Ledger:
     def record_observation(self, obs: Observation) -> None:
         if self.experiment(obs.experiment_id) is None:
             raise KeyError(f"unknown experiment {obs.experiment_id}")
+        assigned = self.assignment(obs.experiment_id, obs.unit_id)
+        if assigned is not None and assigned != obs.variant:
+            raise ValueError(f"unit {obs.unit_id!r} was assigned {assigned!r}, not "
+                             f"{obs.variant!r}; record what the unit actually received")
         self._append("observation", obs.to_dict())
 
     def record_observations(self, observations: Iterable[Observation]) -> None:
@@ -138,6 +144,25 @@ class Ledger:
     def final_decision(self, experiment_id: str) -> Optional[Decision]:
         finals = [d for d in self.decisions(experiment_id) if d.outcome.is_final]
         return finals[-1] if finals else None
+
+    def assignment(self, experiment_id: str, unit_id: str) -> Optional[str]:
+        for e in reversed(self._events):
+            if (e.get("kind") == "assignment" and e["experiment_id"] == experiment_id
+                    and e["unit_id"] == unit_id):
+                return e["variant"]
+        return None
+
+    def mark_applied(self, experiment_id: str, variant: str, outcome: str) -> None:
+        if self.applied(experiment_id) is not None:
+            raise ValueError(f"experiment {experiment_id} was already applied")
+        self._append("applied", {"experiment_id": experiment_id, "variant": variant,
+                                 "outcome": outcome})
+
+    def applied(self, experiment_id: str) -> Optional[dict[str, Any]]:
+        for e in self.of_kind("applied"):
+            if e["experiment_id"] == experiment_id:
+                return e
+        return None
 
     def legacy_records(self, domain: Optional[str] = None) -> list[dict[str, Any]]:
         return [e for e in self.of_kind("legacy_arm_summary")

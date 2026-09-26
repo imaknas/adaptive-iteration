@@ -117,6 +117,17 @@ def build_parser() -> argparse.ArgumentParser:
     ca.add_argument("--pool-file", help="JSON list of historical values (default: ledger data)")
     ca.add_argument("--sims", type=int, default=1000)
 
+    asg = sub.add_parser("assign", help="which variant a unit should get")
+    asg.add_argument("--experiment", required=True)
+    asg.add_argument("--unit", required=True)
+    asg.add_argument("--stratum")
+
+    pe = sub.add_parser("pending", help="closed verdicts not yet put into effect")
+    pe.add_argument("--domain", required=True)
+
+    ma = sub.add_parser("mark-applied", help="record that a verdict is now in effect")
+    ma.add_argument("--experiment", required=True)
+
     sub.add_parser("mcp", help="serve these operations over MCP on stdio")
     return p
 
@@ -172,6 +183,12 @@ def run(args: argparse.Namespace) -> Any:
                 pool = [float(v) for v in json.load(f)]
         return service.calibrate(L, args.domain, effect=args.effect,
                                  per_window=args.per_window, pool=pool, sims=args.sims)
+    if args.command == "assign":
+        return service.assign_variant(L, args.experiment, args.unit, args.stratum)
+    if args.command == "pending":
+        return service.pending(L, args.domain)
+    if args.command == "mark-applied":
+        return service.mark_applied(L, args.experiment)
     raise service.ServiceError(f"unknown command {args.command}")
 
 

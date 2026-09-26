@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import math
 import statistics
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Literal, Optional
 
 from .decision import Outcome
@@ -41,6 +41,7 @@ class EvidenceSummary:
     metric_dispersion: dict[str, float]
     data_quality: dict[str, int]
     cost: dict[str, Optional[float]]   # what judging has cost so far, see build_evidence()
+    proposers: dict[str, dict[str, Optional[float]]] = field(default_factory=dict)
 
     def to_markdown(self) -> str:
         lines = [f"# Evidence — {self.domain}",
@@ -74,6 +75,17 @@ class EvidenceSummary:
                       f"{c['decisive']:g}, no detectable difference: {c['no_detectable_diff']:g}",
                       f"- units per decisive result: {per:.0f}" if per is not None
                       else "- units per decisive result: (no decisive result yet)"]
+        if self.proposers:
+            lines += ["", "## Proposer track record",
+                      "| proposer | proposed | closed | challenger won | control won | "
+                      "no difference | units per decisive | realised ÷ expected effect |",
+                      "|---|---|---|---|---|---|---|---|"]
+            for name, r in sorted(self.proposers.items()):
+                per = "" if r["units_per_decisive"] is None else f"{r['units_per_decisive']:.0f}"
+                ratio = "" if r["effect_ratio"] is None else f"{r['effect_ratio']:.2f}"
+                lines.append(f"| {name} | {r['proposed']:g} | {r['closed']:g} | "
+                             f"{r['challenger_won']:g} | {r['control_won']:g} | "
+                             f"{r['no_difference']:g} | {per} | {ratio} |")
         if any(self.data_quality.values()):
             lines += ["", "## Data quality",
                       *[f"- {k}: {v}" for k, v in self.data_quality.items() if v]]
@@ -170,4 +182,30 @@ def build_evidence(ledger: Ledger, domain: str, spec: MetricSpec) -> EvidenceSum
 
     return EvidenceSummary(domain=domain, metric=spec, variables=tuple(evidence),
                            open_experiments=tuple(open_ids), metric_dispersion=dispersion,
-                           data_quality=quality, cost=cost)
+                           data_quality=quality, cost=cost,
+                           proposers=_track_record(ledger, experiments))
+
+
+def _track_record(ledger: Ledger, experiments: list) -> dict[str, dict[str, Optional[float]]]:
+    """Per proposer: how its experiments ended, what they cost, and how its expected
+    effects compared with what was measured (median of realised ÷ expected)."""
+    groups: dict[str, list] = {}
+    for exp in experiments:
+        groups.setdefault(exp.proposed_by or "unknown", []).append(exp)
+    out: dict[str, dict[str, Optional[float]]] = {}
+    for name, exps in groups.items():
+        finals = [(e, ledger.final_decision(e.id)) for e in exps]
+        closed = [(e, d) for e, d in finals if d is not None]
+        b_won = sum(d.outcome is Outcome.B_BETTER for _, d in closed)
+        a_won = sum(d.outcome is Outcome.A_BETTER for _, d in closed)
+        units = sum(len(ledger.observations(e.id)) for e, _ in closed)
+        ratios = [d.effect / e.expected_effect for e, d in closed
+                  if e.expected_effect and d.effect is not None]
+        out[name] = {
+            "proposed": float(len(exps)), "closed": float(len(closed)),
+            "challenger_won": float(b_won), "control_won": float(a_won),
+            "no_difference": float(len(closed) - b_won - a_won),
+            "units_per_decisive": units / (a_won + b_won) if a_won + b_won else None,
+            "effect_ratio": statistics.median(ratios) if ratios else None,
+        }
+    return out

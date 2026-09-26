@@ -66,6 +66,8 @@ class Experiment:
       of the topic itself.
     """
     items: list[dict[str, Any]] = field(default_factory=list)
+    proposed_by: Optional[str] = None       # which proposer suggested it (track record)
+    expected_effect: Optional[float] = None  # the proposer's own estimate, in metric units
 
     def to_dict(self) -> dict:
         return {
@@ -81,6 +83,8 @@ class Experiment:
             "status":      self.status,
             "mode":        self.mode,
             "items":       self.items,
+            "proposed_by": self.proposed_by,
+            "expected_effect": self.expected_effect,
         }
 
     @classmethod
@@ -98,6 +102,8 @@ class Experiment:
             status=d.get("status", "pending"),
             mode=d.get("mode", "interleaved"),
             items=d.get("items", []),
+            proposed_by=d.get("proposed_by"),
+            expected_effect=d.get("expected_effect"),
         )
 
 

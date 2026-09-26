@@ -78,6 +78,46 @@ print(decision.outcome, decision.effect, decision.interval, decision.reason)
 
 ---
 
+## Running it automatically
+
+`Loop` drives the whole cycle so nobody has to. You plug in three things and call
+`tick()` on a schedule:
+
+```python
+from adaptive_iteration import Loop
+
+loop = Loop(ledger, "shorts",
+            collect=my_adapter.collect_observations,   # experiment -> observations
+            apply=put_into_pipeline,                   # (experiment, variant, decision)
+            proposer=my_proposer,
+            max_concurrent=1,
+            require_approval=True)                     # hold B-wins for a human
+
+# while producing each unit: which variant of each running experiment it gets
+for a in loop.variant_for(unit_id="video-0412", stratum="money"):
+    render_with(a.variable, a.variant)
+
+report = loop.tick()          # from cron, daily is fine
+```
+
+Each tick collects fresh observations, judges every running experiment (still only
+at checkpoints), puts closed verdicts into effect (the winner, or variant A when
+nothing won), and fills free slots with new proposals. Before a proposal is started
+it is **screened**: from the proposer's `expected_effect`, the domain's own spread
+and its weekly volume, the loop estimates how long a verdict would take, and turns
+away proposals that could never be detected in time or aren't worth acting on even
+if right.
+
+Nobody can know in advance whether a hypothesis is right, but a proposer's record
+shows over time. `evidence()` keeps one per proposer: how its experiments ended, what
+they cost, and how its expected effects compared with what was measured.
+
+A simulated pipeline (60 units a week, noisy, topic-skewed) run for 16 weeks with no
+human involved, 200 times: a real +15 improvement was adopted every time; changes
+with no real effect were adopted 1.8% of the time.
+
+---
+
 ## Judging
 
 `Evaluator` decides **when** and **which data**; a `DecisionRule` decides **what

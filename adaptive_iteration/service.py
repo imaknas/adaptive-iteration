@@ -18,6 +18,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Optional, Union
 
+from .core.assignment import assign as _assign
 from .core.decision import Decision, Outcome
 from .core.domain import DomainConfig, config_for, current_config, save_config
 from .core.evidence import build_evidence
@@ -26,6 +27,7 @@ from .core.hypothesis import HypothesisEngine, Proposal, ReviewedProposal
 from .core.ledger import Ledger
 from .core.metrics import MetricSpec, Observation
 from .core.registry import VariableDef, VariableRegistry
+from .core.screening import Screening
 from .replay import calibrate as _calibrate
 
 PathLike = Union[str, Path]
@@ -113,6 +115,9 @@ def _proposal(d: dict[str, Any]) -> Proposal:
             variant_a=_variant(d["variant_a"]), variant_b=_variant(d["variant_b"]),
             tier=int(d.get("tier", 2)), mode=d.get("mode", "interleaved"),
             rationale=d.get("rationale", ""),
+            expected_effect=(float(d["expected_effect"])
+                             if d.get("expected_effect") is not None else None),
+            proposed_by=d.get("proposed_by"),
             new_variable=VariableDef(d["variable"], nv.get("description", ""), (),
                                      nv.get("execution")) if nv else None)
     except (KeyError, TypeError) as e:
@@ -127,6 +132,8 @@ def _variant(v: Any) -> Variant:
 
 
 class _Fixed:
+    name = "manual"
+
     def __init__(self, proposals: list[Proposal]) -> None:
         self.proposals = proposals
 
@@ -136,11 +143,18 @@ class _Fixed:
 
 def _reviewed_dict(r: ReviewedProposal) -> dict[str, Any]:
     return {"status": r.status, "variable": r.variable, "flags": list(r.flags),
-            "reason": r.reason, "proposal": {
+            "reason": r.reason, "screening": r.screening, "proposal": {
                 "variable": r.proposal.variable, "description": r.proposal.description,
                 "variant_a": r.proposal.variant_a.to_dict(),
                 "variant_b": r.proposal.variant_b.to_dict(),
-                "tier": r.proposal.tier, "mode": r.proposal.mode}}
+                "tier": r.proposal.tier, "mode": r.proposal.mode,
+                "expected_effect": r.proposal.expected_effect,
+                "proposed_by": r.proposal.proposed_by}}
+
+
+def _screening(cfg: DomainConfig) -> Screening:
+    return Screening(max_windows=cfg.max_windows, window=timedelta(days=cfg.window_days),
+                     binary=cfg.rule == "proportion")
 
 
 def review_proposals(ledger: PathLike, domain: str, proposals: list[dict[str, Any]]
@@ -149,7 +163,7 @@ def review_proposals(ledger: PathLike, domain: str, proposals: list[dict[str, An
     led = _open(ledger)
     cfg = _config(led, domain)
     parsed = [_proposal(p) for p in proposals]
-    engine = HypothesisEngine(led, _Fixed(parsed))
+    engine = HypothesisEngine(led, _Fixed(parsed), screening=_screening(cfg))
     return [_reviewed_dict(r) for r in engine.generate(domain, cfg.metric, n=len(parsed))]
 
 
@@ -160,7 +174,7 @@ def accept_proposal(ledger: PathLike, domain: str, proposal: dict[str, Any], *,
     experiment and (by default) start it now."""
     led = _open(ledger)
     cfg = _config(led, domain)
-    engine = HypothesisEngine(led, _Fixed([_proposal(proposal)]))
+    engine = HypothesisEngine(led, _Fixed([_proposal(proposal)]), screening=_screening(cfg))
     [reviewed] = engine.generate(domain, cfg.metric, n=1)
     if not reviewed.accepted:
         raise ServiceError(f"proposal rejected: {reviewed.reason}")
@@ -214,6 +228,10 @@ def record_observations(ledger: PathLike, observations: list[dict[str, Any]]
             if row["variant"] not in (exp.variant_a.label, exp.variant_b.label):
                 raise ServiceError(f"variant {row['variant']!r} is not "
                                    f"{exp.variant_a.label!r} or {exp.variant_b.label!r}")
+            assigned = led.assignment(exp.id, str(row["unit_id"]))
+            if assigned is not None and assigned != row["variant"]:
+                raise ServiceError(f"unit {row['unit_id']!r} was assigned {assigned!r}, "
+                                   f"not {row['variant']!r}")
             metrics = row.get("metrics") or {}
             for k, v in metrics.items():
                 if v is not None and not isinstance(v, (int, float)):
@@ -314,7 +332,7 @@ def evidence(ledger: PathLike, domain: str, fmt: str = "json") -> Any:
                       for v in ev.variables],
         "open_experiments": list(ev.open_experiments),
         "metric_dispersion": ev.metric_dispersion, "data_quality": ev.data_quality,
-        "cost": ev.cost,
+        "cost": ev.cost, "proposers": ev.proposers,
     }
 
 
@@ -367,3 +385,52 @@ def calibrate(ledger: PathLike, domain: str, *, effect: float, per_window: int,
             "wrong_direction_rate": c.wrong_direction,
             "median_windows_to_verdict": c.median_weeks_to_final,
             "outcomes": c.outcomes, "settings": cfg.to_dict()}
+
+
+# ── Assignment and putting verdicts into effect ────────────────────────────────
+
+def assign_variant(ledger: PathLike, experiment_id: str, unit_id: str,
+                   stratum: Optional[str] = None) -> dict[str, Any]:
+    """Which variant a unit should get. Balanced within its stratum, recorded, and
+    stable: asking again for the same unit gives the same answer."""
+    led = _open(ledger)
+    try:
+        label = _assign(led, experiment_id, unit_id, stratum)
+    except (KeyError, ValueError) as e:
+        raise ServiceError(str(e).strip("'\"")) from e
+    exp = led.experiment(experiment_id)
+    variant = exp.variant_a if label == exp.variant_a.label else exp.variant_b
+    return {"experiment_id": experiment_id, "unit_id": unit_id, "stratum": stratum,
+            **variant.to_dict()}
+
+
+def pending(ledger: PathLike, domain: str) -> list[dict[str, Any]]:
+    """Closed experiments whose verdict hasn't been put into effect yet."""
+    led = _open(ledger)
+    out = []
+    for exp in led.experiments(domain):
+        d = led.final_decision(exp.id)
+        if d is None or led.applied(exp.id) is not None:
+            continue
+        b_won = d.outcome is Outcome.B_BETTER
+        out.append({"experiment_id": exp.id, "variable": exp.variable,
+                    "outcome": d.outcome.value,
+                    "variant": exp.variant_b.label if b_won else exp.variant_a.label,
+                    "changes_pipeline": b_won, "effect": d.effect,
+                    "interval": list(d.interval) if d.interval else None})
+    return out
+
+
+def mark_applied(ledger: PathLike, experiment_id: str) -> dict[str, Any]:
+    """Record that a closed experiment's verdict is now in effect in the pipeline."""
+    led = _open(ledger)
+    exp = led.experiment(experiment_id)
+    d = led.final_decision(experiment_id) if exp else None
+    if exp is None or d is None:
+        raise ServiceError(f"{experiment_id!r} is not a closed experiment")
+    variant = exp.variant_b.label if d.outcome is Outcome.B_BETTER else exp.variant_a.label
+    try:
+        led.mark_applied(experiment_id, variant, d.outcome.value)
+    except ValueError as e:
+        raise ServiceError(str(e)) from e
+    return {"experiment_id": experiment_id, "variant": variant, "outcome": d.outcome.value}

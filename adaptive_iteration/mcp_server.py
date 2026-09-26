@@ -23,20 +23,25 @@ Workflow:
    smallest difference worth acting on; ask the user if you don't know it.
    rule="proportion" for 0/1 metrics (clicked, replied), otherwise "welch".
 2. register_variable for each thing you intend to vary.
-3. accept_proposal to start an experiment (A vs B on one variable). Use
-   review_proposals first to check several ideas without writing anything.
-4. record_observations: one row per produced unit, with the variant it got.
-5. evaluate(domain=...) whenever you like — verdicts only happen at checkpoints.
+3. accept_proposal to start an experiment (A vs B on one variable). Give every
+   proposal an expected_effect (the B − A you expect, in metric units) and a
+   proposed_by name: proposals that could not be detected in time are rejected,
+   and evidence() keeps each proposer's track record. Use review_proposals first to
+   check several ideas without writing anything.
+4. Before producing each unit, call assign_variant and use the variant it returns.
+5. record_observations: one row per produced unit, with the variant it got.
+6. evaluate(domain=...) whenever you like — verdicts only happen at checkpoints.
    Follow decision.next_action.
-6. evidence(domain) before proposing what to test next.
+7. pending(domain) lists closed verdicts not yet in effect. Put each into effect in
+   the pipeline (ask the user first if it changes the pipeline), then mark_applied.
+8. evidence(domain) before proposing what to test next.
 
 Rules you must follow:
 - Act only on closed verdicts (b_better, a_better, equivalent, no_detectable_diff).
   "insufficient" means keep collecting; never act on the interim numbers.
 - Missing metric values are null, never 0.
 - Record every unit, one row each; never pre-aggregate or drop unfavourable units.
-- Assign variants by alternation or at random, never by judging which units
-  "suit" a variant.
+- Get every unit's variant from assign_variant; never choose it yourself.
 - Change nothing else about the pipeline while an experiment runs; if something
   else changes, tell the user — results spanning the change are confounded.
 - configure() does not change running experiments; don't use it to rescue one.
@@ -100,8 +105,9 @@ def build_server(ledger: str) -> Any:
     @guard
     def review_proposals(domain: str, proposals: list[dict[str, Any]]) -> dict[str, Any]:
         """Check proposed experiments without writing anything. Each proposal:
-        {"variable", "variant_a", "variant_b", "description"?, "mode"?,
-         "new_variable"?: {"description", "execution"}}. Variants are label strings or
+        {"variable", "variant_a", "variant_b", "expected_effect", "proposed_by",
+         "description"?, "mode"?, "new_variable"?: {"description", "execution"}}.
+        "screening" says whether the expected effect is detectable in time. Variants are label strings or
         {"label", "hint"}. Status is known / merged / new / rejected."""
         return {"reviewed": service.review_proposals(ledger, domain, proposals)}
 
@@ -129,6 +135,26 @@ def build_server(ledger: str) -> Any:
         """Judge one experiment, or every running one in a domain. Safe to call often;
         verdicts are taken only at checkpoints. Follow decision.next_action."""
         return {"results": service.evaluate(ledger, experiment_id, domain=domain)}
+
+    @server.tool()
+    @guard
+    def assign_variant(experiment_id: str, unit_id: str, stratum: Optional[str] = None
+                       ) -> dict[str, Any]:
+        """Which variant this unit gets (label, params, hint). Balanced within the
+        stratum, recorded, and stable for the same unit_id. Call before producing it."""
+        return service.assign_variant(ledger, experiment_id, unit_id, stratum)
+
+    @server.tool(annotations=read_only)
+    @guard
+    def pending(domain: str) -> dict[str, Any]:
+        """Closed verdicts not yet put into effect. changes_pipeline=true means B won."""
+        return {"pending": service.pending(ledger, domain)}
+
+    @server.tool()
+    @guard
+    def mark_applied(experiment_id: str) -> dict[str, Any]:
+        """Record that a closed experiment's verdict is now in effect in the pipeline."""
+        return service.mark_applied(ledger, experiment_id)
 
     @server.tool(annotations=read_only)
     @guard

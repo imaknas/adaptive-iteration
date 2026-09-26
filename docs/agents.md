@@ -56,10 +56,13 @@ connects, so no extra prompting is needed.
 | `register_variable` | yes | name something you will vary |
 | `merge_variables` | yes | declare two names the same variable |
 | `review_proposals` | no | `{"reviewed": [...]}`: ideas checked against the registry and running experiments |
-| `accept_proposal` | yes | start an experiment (returns its id) |
+| `accept_proposal` | yes | start an experiment (returns its id); screened for detectability when it has an `expected_effect` |
 | `record_observations` | yes | one row per produced unit |
 | `evaluate` | at checkpoints | `{"results": [...]}`: verdict plus `next_action` per experiment |
-| `evidence` | no | what is known per variable, and what it cost |
+| `assign_variant` | yes | which variant a unit gets; balanced within its stratum and recorded |
+| `pending` | no | `{"pending": [...]}`: closed verdicts not yet put into effect |
+| `mark_applied` | yes | record that a verdict is now in effect in the pipeline |
+| `evidence` | no | what is known per variable, what it cost, and each proposer's track record |
 | `status` | no | experiments per domain |
 | `calibrate` | no | false-winner rate and detection rate on the domain's own data |
 
@@ -83,6 +86,10 @@ cat sent_today.jsonl | adaptive-iteration record
 adaptive-iteration evaluate --domain newsletter     # safe to run daily from cron
 adaptive-iteration evidence --domain newsletter --markdown
 adaptive-iteration calibrate --domain newsletter --effect 0 --per-window 200
+
+adaptive-iteration assign --experiment 3f9a1c2e --unit email-0043 --stratum loyal
+adaptive-iteration pending --domain newsletter
+adaptive-iteration mark-applied --experiment 3f9a1c2e
 ```
 
 Errors print `{"error": "..."}`, exit with status 1, and say how to fix the call.
@@ -113,13 +120,15 @@ These hold no matter what the agent asks for:
 | Re-testing the same idea under a new name | proposals are checked against the variable registry; duplicates are merged or rejected |
 | Two experiments on one variable at once | rejected at `accept_proposal` |
 | Trusting an untested setup | `calibrate` measures false winners and detection on the domain's own data |
+| Picking variants by hand | `assign_variant` decides; an observation contradicting a unit's assignment is refused |
+| Starting experiments that can't finish | proposals with an `expected_effect` too small for the domain's volume are rejected |
 
 ## What the agent is still responsible for
 
 The framework can't see your pipeline, so the agent must:
 
-- assign variants by alternation or at random, never by picking units that
-  "suit" a variant;
+- ask `assign_variant` for every unit's variant and use exactly that;
+- give every proposal an honest `expected_effect` and a `proposed_by` name;
 - change nothing else about the pipeline while an experiment runs, and tell the
   user if something else does change;
 - record every unit, including the ones that did badly;
