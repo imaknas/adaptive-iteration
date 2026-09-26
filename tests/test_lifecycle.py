@@ -127,7 +127,7 @@ def test_loop_restart_mid_run_then_concludes(tmp_path):
     assert ledger.final_decision(new.id) is not None and ledger.applied(old.id) is None
 
 
-# ── shadow mode (the setup short-video asked about) ──────────────────────────
+# ── shadow mode ───────────────────────────────────────────────────────────────
 
 def test_shadow_loop_on_a_copy_leaves_the_real_ledger_alone(tmp_path):
     ledger = configured(tmp_path, max_windows=1)       # one checkpoint: a verdict is final

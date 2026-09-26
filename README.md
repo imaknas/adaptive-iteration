@@ -95,7 +95,7 @@ loop = Loop(ledger, "shorts",
             require_approval=True)                     # so do B-wins before they apply
 
 # while producing each unit: which variant of each running experiment it gets
-for a in loop.variant_for(unit_id="video-0412", stratum="money"):
+for a in loop.variant_for(unit_id="video-0412", stratum="cooking"):
     render_with(a.variable, a.variant)
 
 report = loop.tick()          # from cron, daily is fine
@@ -156,9 +156,9 @@ and compares it with the region of practical equivalence `±min_effect`:
 | `NO_DETECTABLE_DIFF` | anything else at the last checkpoint |
 
 `WelchIntervalRule(superiority="margin")` is a stricter variant that requires the
-whole interval to clear `min_effect`. On real short-video data (see replay below)
-both kept false positives under 5%, but the stricter variant caught a true
-10-point effect 16% of the time versus 55%, so it is not the default.
+whole interval to clear `min_effect`. Replayed on real production data (see replay
+below), both kept false positives under 5%, but the stricter variant caught real
+effects far less often, so it is not the default.
 
 Alpha is split across the checkpoints (Bonferroni), so looking every week keeps the
 experiment-wide false-positive rate under 5%. Closing one experiment never stops the
@@ -180,7 +180,7 @@ where A and B always agree reads as "not enough evidence", never as "equivalent"
 `ProportionIntervalRule` switches to it automatically for paired experiments.
 
 **Groups of units** that differ a lot on their own (topics, audience segments) can
-be tagged with `Observation(..., stratum="money")`. `WelchIntervalRule` then
+be tagged with `Observation(..., stratum="cooking")`. `WelchIntervalRule` then
 compares the arms within each group and combines the results, so an uneven mix of
 groups between the arms cannot pose as an effect.
 

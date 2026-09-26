@@ -226,14 +226,14 @@ or more patience (`max_windows`).
 ## 6. When your units come in groups
 
 Sometimes units fall into groups that differ a lot on their own. For example, videos
-about money might average 100% viewed while videos about psychology average 60%. If
-one variant happens to get more money videos, it will look better for reasons that
+about cooking might average 100% viewed while videos about history average 60%. If
+one variant happens to get more cooking videos, it will look better for reasons that
 have nothing to do with the variant.
 
 Tag each unit with its group:
 
 ```python
-Observation(..., metrics={"avg_view_pct": 97.0}, stratum="money")
+Observation(..., metrics={"avg_view_pct": 97.0}, stratum="cooking")
 ```
 
 The default `WelchIntervalRule` then compares A with B **within** each group and

@@ -25,15 +25,15 @@ POOL = [max(1.0, _rng.lognormvariate(4.4, 0.3)) for _ in range(150)]
 
 @dataclass(frozen=True)
 class V01Rule:
-    """The v0.1 short-video rule: ≥3 per arm, averages differ by more than weak_diff."""
-    weak_diff: float = 5.0
+    """A naive hand-rolled rule: ≥3 per arm, averages differ by more than a threshold."""
+    threshold: float = 5.0
     name: str = "v01_mean_diff"
 
     def decide(self, a: Sample, b: Sample, spec: MetricSpec, ctx: DecisionContext) -> RuleResult:
         if min(len(a), len(b)) < 3:
             return RuleResult(Outcome.INSUFFICIENT, "n < 3")
         diff = statistics.fmean(b.values) - statistics.fmean(a.values)
-        if abs(diff) < self.weak_diff:
+        if abs(diff) < self.threshold:
             return RuleResult(Outcome.NO_DETECTABLE_DIFF, "small diff")
         return RuleResult(Outcome.B_BETTER if diff > 0 else Outcome.A_BETTER, "mean diff")
 
