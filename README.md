@@ -75,6 +75,8 @@ print(decision.outcome, decision.effect, decision.interval, decision.reason)
 ```
 
 `examples/quickstart.py` runs the whole loop on simulated data with no model.
+`examples/inference_benchmark.py` judges one-off batches instead: is a config faster,
+is a quantized model "no worse", and how much of the best-of-many gain is real.
 
 ---
 
