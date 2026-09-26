@@ -27,7 +27,7 @@ experiment, explained for someone who has never used the framework.
 on interim numbers, no moving the goalposts mid-experiment). See
 [docs/agents.md](docs/agents.md).
 
-It deliberately does **not** decide where hypotheses come from. You inject a
+It deliberately does **not** decide where hypotheses come from. You pass in a
 `Proposer`: a language model, a parameter grid, a rules engine, or a person.
 Standard statistics (t distribution, Welch intervals) come from scipy; the few
 methods no library provides are implemented here and checked against published
@@ -299,7 +299,7 @@ per decisive result) — so a proposer can prefer hypotheses that resolve quickl
 | `rejected` | unregistered without a definition, or the variable already has an open experiment |
 
 Nothing is written until `accept()`, so unused proposals never pollute the registry.
-The default duplicate check compares name tokens; inject your own
+The default duplicate check compares name tokens; pass your own
 `DuplicateDetector` for semantic matching, or merge by hand:
 
 ```python

@@ -1,4 +1,4 @@
-"""decision.py — Decision types and the DecisionRule strategy.
+"""decision.py — Decision types, and the judging rules that produce them.
 
 A DecisionRule looks at two validated samples and says which arm is better, that
 they are practically equivalent, or that there is not enough evidence yet. The

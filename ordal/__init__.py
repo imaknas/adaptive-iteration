@@ -1,6 +1,6 @@
 """ordal — Domain-agnostic adaptive experimentation framework.
 
-Statistics come from scipy where it has them. Hypotheses come from a Proposer you inject;
+Statistics come from scipy where it has them. Hypotheses come from a Proposer you pass in;
 results are judged by a DecisionRule (default: WelchIntervalRule).
 
     from ordal import (

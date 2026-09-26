@@ -1,7 +1,7 @@
 """Example: a Proposer backed by a language model.
 
 This lives outside the package on purpose — the framework never calls a model.
-Copy it, pick your own client/model/prompt, and inject it into HypothesisEngine.
+Copy it, pick your own client/model/prompt, and pass it to HypothesisEngine.
 `complete` is any function (system_prompt, user_prompt) -> str, so the same class
 works with OpenAI, Anthropic, a local model, or a test stub.
 """

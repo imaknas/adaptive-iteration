@@ -113,7 +113,7 @@ def _tokens(name: str) -> frozenset[str]:
 class TokenSetDetector:
     """Same set of name tokens = same variable ("visual_opening_style" == "opening_visual_style").
     Semantic near-duplicates ("intro_…" vs "opening_…") are out of reach for a string rule —
-    merge them by hand or inject a smarter DuplicateDetector."""
+    merge them by hand or pass a smarter DuplicateDetector."""
 
     def find_match(self, candidate: VariableDef, registry: VariableRegistry) -> Optional[str]:
         wanted = {_tokens(n) for n in (candidate.name, *candidate.aliases)}
