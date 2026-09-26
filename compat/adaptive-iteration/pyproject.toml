@@ -4,15 +4,15 @@ build-backend = "hatchling.build"
 
 [project]
 name = "adaptive-iteration"
-version = "0.11.0"
+version = "0.12.0"
 description = "Renamed to ordal. This package installs ordal and keeps the old import paths working."
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.10"
-dependencies = ["ordal>=0.11"]
+dependencies = ["ordal>=0.12"]
 
 [project.optional-dependencies]
-mcp = ["ordal[mcp]>=0.11"]
+mcp = ["ordal[mcp]>=0.12"]
 
 [project.scripts]
 adaptive-iteration = "ordal.cli:main"
