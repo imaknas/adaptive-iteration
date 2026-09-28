@@ -666,7 +666,7 @@ wheels = [
 
 [[package]]
 name = "ordal"
-version = "0.12.0"
+version = "0.13.0"
 source = { editable = "." }
 dependencies = [
     { name = "scipy", version = "1.15.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },

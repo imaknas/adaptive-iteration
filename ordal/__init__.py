@@ -34,7 +34,7 @@ from .metrics import MetricSpec, Observation
 from .registry import DuplicateDetector, TokenSetDetector, VariableDef, VariableRegistry
 from .screening import Screening, estimate_capacity
 
-__version__ = "0.12.0"
+__version__ = "0.13.0"
 
 __all__ = [
     "Decision", "DecisionContext", "DecisionRule", "Outcome", "PairedProportionRule",
