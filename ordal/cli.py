@@ -116,7 +116,13 @@ def build_parser() -> argparse.ArgumentParser:
     ca.add_argument("--effect", type=float, required=True, help="0 for the false-winner rate")
     ca.add_argument("--per-window", type=int, required=True, help="units per variant per window")
     ca.add_argument("--pool-file", help="JSON list of historical values (default: ledger data)")
+    ca.add_argument("--pool-b-file", help="JSON list for arm B (e.g. 0/1 data at a higher rate)")
     ca.add_argument("--sims", type=int, default=1000)
+    ca.add_argument("--seed", type=int, default=0, help="same seed, same result")
+
+    mg = sub.add_parser("migrate", help="convert a v0.1 ledger (JSON array) to JSONL")
+    mg.add_argument("src")
+    mg.add_argument("dst")
 
     asg = sub.add_parser("assign", help="which variant a unit should get")
     asg.add_argument("--experiment", required=True)
@@ -148,6 +154,8 @@ def run(args: argparse.Namespace) -> Any:
         from .mcp_server import serve
         serve(args.ledger)
         return None
+    if args.command == "migrate":
+        return service.migrate_ledger(args.src, args.dst)
     if not args.ledger:
         raise service.ServiceError("no ledger: pass --ledger PATH or set "
                                    "ORDAL_LEDGER")
@@ -188,12 +196,15 @@ def run(args: argparse.Namespace) -> Any:
     if args.command == "status":
         return service.status(L, args.domain)
     if args.command == "calibrate":
-        pool = None
-        if args.pool_file:
-            with open(args.pool_file, encoding="utf-8") as f:
-                pool = [float(v) for v in json.load(f)]
+        def load_pool(path: Optional[str]) -> Optional[list[float]]:
+            if not path:
+                return None
+            with open(path, encoding="utf-8") as f:
+                return [float(v) for v in json.load(f)]
         return service.calibrate(L, args.domain, effect=args.effect,
-                                 per_window=args.per_window, pool=pool, sims=args.sims)
+                                 per_window=args.per_window, pool=load_pool(args.pool_file),
+                                 pool_b=load_pool(args.pool_b_file), sims=args.sims,
+                                 seed=args.seed)
     if args.command == "assign":
         return service.assign_variant(L, args.experiment, args.unit, args.stratum)
     if args.command == "pending":

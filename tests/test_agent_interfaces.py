@@ -183,3 +183,48 @@ def test_mcp_tools_end_to_end(ledger):
 
     exp_id = asyncio.run(scenario())
     assert service.status(ledger, "nl")["nl"]["experiments"][0]["id"] == exp_id
+
+
+def test_mcp_start_approval_flow_and_settings_readback(ledger):
+    """accept without starting → nothing can be assigned → start_experiment → assign."""
+    pytest.importorskip("mcp")
+    from mcp import Client
+
+    from ordal.mcp_server import build_server
+
+    async def scenario():
+        async with Client(build_server(ledger)) as c:
+            async def call(tool, **args):
+                r = await c.call_tool(tool, args)
+                return r.is_error, json.loads(r.content[0].text) if not r.is_error \
+                    else r.content[0].text
+
+            await call("configure", domain="nl", metric="clicked", min_effect=0.05,
+                       rule="proportion", superiority="margin")
+            await call("register_variable", domain="nl", name="subject_style")
+            err, acc = await call("accept_proposal", domain="nl", start=False,
+                                  proposal={"variable": "subject_style",
+                                            "variant_a": "statement", "variant_b": "question"})
+            assert not err and acc["experiment"]["status"] == "not_started"
+            eid = acc["experiment"]["id"]
+            err, msg = await call("assign_variant", experiment_id=eid, unit_id="u1")
+            assert err and "not started" in msg
+            err, started = await call("start_experiment", experiment_id=eid)
+            assert not err and started["status"] == "running"
+            err, got = await call("assign_variant", experiment_id=eid, unit_id="u1")
+            assert not err and got["label"] in ("statement", "question")
+            err, st = await call("status", domain="nl")
+            assert st["nl"]["settings"]["superiority"] == "margin"
+
+    asyncio.run(scenario())
+
+
+def test_cli_migrate(tmp_path, capsys):
+    src, dst = tmp_path / "old.json", tmp_path / "new.jsonl"
+    src.write_text(json.dumps([{"domain": "d", "experiment_id": "x", "variable": "v",
+                                "variant": "a", "metric_values": {"m": 1}, "winner": True,
+                                "timestamp": "2026-08-01T00:00:00+00:00"}]))
+    code, out = run_cli(capsys, "migrate", str(src), str(dst))
+    assert code == 0 and out["legacy_records"] == 1 and out["variables_registered"] == 1
+    code, out = run_cli(capsys, "migrate", str(src), str(dst))
+    assert code == 1 and "exists" in out["error"]

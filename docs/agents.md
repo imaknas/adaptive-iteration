@@ -56,17 +56,22 @@ connects, so no extra prompting is needed.
 | `register_variable` | yes | name something you will vary |
 | `merge_variables` | yes | declare two names the same variable |
 | `review_proposals` | no | `{"reviewed": [...]}`: ideas checked against the registry and running experiments |
-| `accept_proposal` | yes | start an experiment (returns its id); screened for detectability when it has an `expected_effect` |
+| `accept_proposal` | yes | start an experiment (returns its id); screened for detectability when it has an `expected_effect`; `start=false` leaves it waiting |
+| `start_experiment` | yes | start one that is waiting (e.g. after the user approved it) |
 | `record_observations` | yes | one row per produced unit |
-| `evaluate` | at checkpoints | `{"results": [...]}`: verdict plus `next_action` per experiment |
+| `evaluate` | at checkpoints | `{"results": [...]}`: verdict plus `next_action` per experiment, always judged at the current time |
 | `assign_variant` | yes | which variant a unit gets; balanced within its stratum and recorded |
 | `pending` | no | `{"pending": [...]}`: closed verdicts not yet put into effect |
 | `mark_applied` | yes | record that a verdict is now in effect in the pipeline |
-| `restart_experiment` | yes | the pipeline changed mid-experiment: abandon it and start it again from now |
+| `restart_experiment` | yes | the pipeline changed mid-experiment: abandon it and start it again from now (`start=false` to wait for approval) |
 | `abandon_experiment` | yes | close an experiment with no verdict (never judged or applied) |
 | `evidence` | no | what is known per variable, what it cost, and each proposer's track record |
-| `status` | no | experiments per domain |
-| `calibrate` | no | false-winner rate and detection rate on the domain's own data |
+| `status` | no | experiments per domain, and the settings new experiments will get |
+| `calibrate` | no | false-winner rate and detection rate on the domain's own data (`seed` makes it repeatable) |
+
+The CLI has the same operations plus two that agents don't get: `evaluate --now`
+(judging as of another time, for shadow runs and scripts; over MCP an agent could use
+it to jump to a checkpoint on demand) and `migrate` (a one-time file conversion).
 
 ---
 
@@ -92,6 +97,10 @@ ordal calibrate --domain newsletter --effect 0 --per-window 200
 ordal assign --experiment 3f9a1c2e --unit email-0043 --stratum loyal
 ordal pending --domain newsletter
 ordal mark-applied --experiment 3f9a1c2e
+
+ordal accept --domain newsletter --no-start --json '{...}'   # wait for approval
+ordal start --experiment 3f9a1c2e                            # approved: start it
+ordal migrate data/adaptive_ledger.json data/ledger.jsonl    # old v0.1 file
 ```
 
 Errors print `{"error": "..."}`, exit with status 1, and say how to fix the call.

@@ -27,7 +27,8 @@ Workflow:
    proposal an expected_effect (the B − A you expect, in metric units) and a
    proposed_by name: proposals that could not be detected in time are rejected,
    and evidence() keeps each proposer's track record. Use review_proposals first to
-   check several ideas without writing anything.
+   check several ideas without writing anything. accept_proposal(start=False) adds
+   it without starting (e.g. until the user approves); start_experiment starts it.
 4. Before producing each unit, call assign_variant and use the variant it returns.
 5. record_observations: one row per produced unit, with the variant it got.
 6. evaluate(domain=...) whenever you like — verdicts only happen at checkpoints.
@@ -77,7 +78,8 @@ def build_server(ledger: str) -> Any:
     @server.tool()
     @guard
     def configure(domain: str, metric: str, min_effect: float, rule: str = "welch",
-                  higher_is_better: bool = True, window_days: float = 7.0,
+                  higher_is_better: bool = True, superiority: str = "significance",
+                  window_days: float = 7.0,
                   maturity_hours: float = 72.0, max_windows: int = 4,
                   valid_min: Optional[float] = None, valid_max: Optional[float] = None
                   ) -> dict[str, Any]:
@@ -85,6 +87,7 @@ def build_server(ledger: str) -> Any:
         "proportion" (0/1 outcomes). Applies only to experiments started afterwards."""
         return service.configure(ledger, domain, metric, min_effect,
                                  higher_is_better=higher_is_better, rule=rule,
+                                 superiority=superiority,
                                  window_days=window_days, maturity_hours=maturity_hours,
                                  max_windows=max_windows, valid_min=valid_min,
                                  valid_max=valid_max)
@@ -114,11 +117,22 @@ def build_server(ledger: str) -> Any:
 
     @server.tool()
     @guard
-    def accept_proposal(domain: str, proposal: dict[str, Any], start: bool = True
-                        ) -> dict[str, Any]:
-        """Review one proposal and, unless rejected, add and start the experiment.
-        Returns its id; tag every unit you produce with that id and its variant."""
-        return service.accept_proposal(ledger, domain, proposal, start=start)
+    def accept_proposal(domain: str, proposal: dict[str, Any], start: bool = True,
+                        started_at: Optional[str] = None) -> dict[str, Any]:
+        """Review one proposal and, unless rejected, add the experiment and start it
+        (start=False leaves it waiting for start_experiment). started_at: when units
+        for it actually began (ISO), if not now. Returns its id; tag every unit you
+        produce with that id and its variant."""
+        return service.accept_proposal(ledger, domain, proposal, start=start,
+                                       started_at=started_at)
+
+    @server.tool()
+    @guard
+    def start_experiment(experiment_id: str, started_at: Optional[str] = None
+                         ) -> dict[str, Any]:
+        """Start an experiment that was added without starting (e.g. after the user
+        approved it). Only units produced from then on belong to it."""
+        return service.start_experiment(ledger, experiment_id, started_at)
 
     @server.tool()
     @guard
@@ -168,11 +182,12 @@ def build_server(ledger: str) -> Any:
 
     @server.tool()
     @guard
-    def restart_experiment(experiment_id: str, reason: str, at: Optional[str] = None
-                           ) -> dict[str, Any]:
+    def restart_experiment(experiment_id: str, reason: str, at: Optional[str] = None,
+                           start: bool = True) -> dict[str, Any]:
         """Abandon a running experiment and start it again from *at* (ISO, default now),
-        e.g. after the pipeline changed. Only data from after the restart counts."""
-        return service.restart_experiment(ledger, experiment_id, reason, at=at)
+        e.g. after the pipeline changed. Only data from after the restart counts.
+        start=False leaves the new one waiting for start_experiment."""
+        return service.restart_experiment(ledger, experiment_id, reason, at=at, start=start)
 
     @server.tool(annotations=read_only)
     @guard
@@ -189,11 +204,14 @@ def build_server(ledger: str) -> Any:
     @server.tool(annotations=read_only)
     @guard
     def calibrate(domain: str, effect: float, per_window: int,
-                  pool: Optional[list[float]] = None, sims: int = 1000) -> dict[str, Any]:
+                  pool: Optional[list[float]] = None, pool_b: Optional[list[float]] = None,
+                  sims: int = 1000, seed: int = 0) -> dict[str, Any]:
         """On this domain's own data: effect=0 gives how often a winner is declared when
-        nothing differs; effect>0 gives how often (and how fast) a real effect is caught."""
+        nothing differs; effect>0 gives how often (and how fast) a real effect is caught.
+        pool/pool_b: values to draw A and B from instead of the ledger's data. Same seed,
+        same result."""
         return service.calibrate(ledger, domain, effect=effect, per_window=per_window,
-                                 pool=pool, sims=sims)
+                                 pool=pool, pool_b=pool_b, sims=sims, seed=seed)
 
     return server
 

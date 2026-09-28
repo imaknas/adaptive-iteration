@@ -29,6 +29,7 @@ from .ledger import Ledger
 from .lifecycle import abandon as _abandon
 from .lifecycle import restart as _restart
 from .metrics import MetricSpec, Observation
+from .migrate import v1_to_v2 as _v1_to_v2
 from .registry import VariableDef, VariableRegistry
 from .replay import calibrate as _calibrate
 from .screening import Screening
@@ -357,9 +358,13 @@ def status(ledger: PathLike, domain: Optional[str] = None) -> dict[str, Any]:
                      | {e["config"]["domain"] for e in led.of_kind("domain_config")})
     if domain:
         domains = [domain]
-    return {d: {"configured": current_config(led, d) is not None,
-                "experiments": [_experiment_dict(led, e) for e in led.experiments(d)]}
-            for d in domains}
+    out = {}
+    for d in domains:
+        cfg = current_config(led, d)
+        out[d] = {"configured": cfg is not None,
+                  "settings": cfg.to_dict() if cfg else None,   # applies to new experiments
+                  "experiments": [_experiment_dict(led, e) for e in led.experiments(d)]}
+    return out
 
 
 def calibrate(ledger: PathLike, domain: str, *, effect: float, per_window: int,
@@ -475,3 +480,16 @@ def restart_experiment(ledger: PathLike, experiment_id: str, reason: str, *,
         raise ServiceError(str(e).strip("'\"")) from e
     return {"abandoned": _experiment_dict(led, led.experiment(experiment_id)),
             "experiment": _experiment_dict(led, new)}
+
+
+# ── Conversion ─────────────────────────────────────────────────────────────────
+
+def migrate_ledger(src: PathLike, dst: PathLike) -> dict[str, Any]:
+    """Convert a v0.1 ledger (JSON array) into a v2 JSONL ledger. The source is kept."""
+    try:
+        led = _v1_to_v2(Path(src), Path(dst))
+    except (FileExistsError, ValueError, OSError) as e:
+        raise ServiceError(str(e)) from e
+    return {"written": str(dst), "events": len(led),
+            "legacy_records": len(led.legacy_records()),
+            "variables_registered": len(led.of_kind("variable"))}

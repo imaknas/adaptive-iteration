@@ -356,6 +356,8 @@ from ordal.migrate import v1_to_v2
 v1_to_v2(Path("data/adaptive_ledger.json"), Path("data/ledger.jsonl"))
 ```
 
+or from the command line: `ordal migrate data/adaptive_ledger.json data/ledger.jsonl`.
+
 Old results become `legacy_unverified` evidence and their variable names are
 registered. `Analyzer`, `DomainAdapter.get_signals/format_context` and the built-in
 OpenAI call are gone; write a proposer instead.
