@@ -42,7 +42,7 @@ def test_every_operation_has_a_cli_command_taking_all_its_parameters():
     for op in OPS:
         name = CLI_NAMES.get(op, op.replace("_", "-"))
         assert name in subs, f"no CLI command for service.{op}"
-        dests = {a.dest for a in subs[name]._actions} | {"src", "dst"}
+        dests = {a.dest for a in subs[name]._actions}
         for p in params(op):
             assert p in dests or CLI_PARAMS.get(p) in dests, f"CLI {name} lacks {p}"
 
