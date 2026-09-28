@@ -66,7 +66,7 @@ connects, so no extra prompting is needed.
 | `restart_experiment` | yes | the pipeline changed mid-experiment: abandon it and start it again from now (`start=false` to wait for approval) |
 | `abandon_experiment` | yes | close an experiment with no verdict (never judged or applied) |
 | `evidence` | no | what is known per variable, what it cost, and each proposer's track record |
-| `status` | no | experiments per domain, and the settings new experiments will get |
+| `status` | no | experiments per domain, and the settings **new** experiments will get; a running experiment keeps the settings it started with (shown in its `evaluate` output) |
 | `calibrate` | no | false-winner rate and detection rate on the domain's own data (`seed` makes it repeatable) |
 
 The CLI has the same operations plus two that agents don't get: `evaluate --now`
