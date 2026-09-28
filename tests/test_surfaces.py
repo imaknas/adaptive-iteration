@@ -14,7 +14,8 @@ OPS = sorted(n for n, f in inspect.getmembers(service, inspect.isfunction)
 CLI_NAMES = {"review_proposals": "review", "accept_proposal": "accept",
              "start_experiment": "start", "record_observations": "record",
              "assign_variant": "assign", "abandon_experiment": "abandon",
-             "restart_experiment": "restart", "migrate_ledger": "migrate"}
+             "restart_experiment": "restart", "migrate_ledger": "migrate",
+             "replay_experiment": "replay"}
 # service parameter -> CLI dest, where they differ
 CLI_PARAMS = {"experiment_id": "experiment", "unit_id": "unit", "observations": "json",
               "proposals": "json", "proposal": "json", "fmt": "markdown",

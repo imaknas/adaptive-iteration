@@ -68,6 +68,7 @@ connects, so no extra prompting is needed.
 | `evidence` | no | what is known per variable, what it cost, and each proposer's track record |
 | `status` | no | experiments per domain, and the settings **new** experiments will get; a running experiment keeps the settings it started with (shown in its `evaluate` output) |
 | `calibrate` | no | false-winner rate and detection rate on the domain's own data (`seed` makes it repeatable) |
+| `replay_experiment` | no | an experiment's checkpoints re-run under its locked settings or with some overridden; hypothetical, for checking a rule — never for choosing settings after seeing a result |
 
 The CLI has the same operations plus two that agents don't get: `evaluate --now`
 (judging as of another time, for shadow runs and scripts; over MCP an agent could use
@@ -101,6 +102,7 @@ ordal mark-applied --experiment 3f9a1c2e
 ordal accept --domain newsletter --no-start --json '{...}'   # wait for approval
 ordal start --experiment 3f9a1c2e                            # approved: start it
 ordal migrate data/adaptive_ledger.json data/ledger.jsonl    # old v0.1 file
+ordal replay --experiment 3f9a1c2e --superiority margin      # what-if, writes nothing
 ```
 
 Errors print `{"error": "..."}`, exit with status 1, and say how to fix the call.
@@ -133,7 +135,8 @@ These hold no matter what the agent asks for:
 | Half-written batches | `record_observations` validates every row first and writes all or nothing |
 | Re-testing the same idea under a new name | proposals are checked against the variable registry; duplicates are merged or rejected |
 | Two experiments on one variable at once | rejected at `accept_proposal` |
-| Trusting an untested setup | `calibrate` measures false winners and detection on the domain's own data |
+| Trusting an untested setup | `calibrate` measures false winners and detection on the domain's own data; `replay_experiment` shows how a recorded experiment would have gone under other settings |
+| Shopping for a rule that shows a winner | settings changes never reach a running experiment, and the agent is told replay is for checking rules, not choosing them after the fact |
 | Picking variants by hand | `assign_variant` decides; an observation contradicting a unit's assignment is refused |
 | Starting experiments that can't finish | proposals with an `expected_effect` too small for the domain's volume are rejected |
 | Judging across a pipeline change | `restart_experiment` starts over; data from before the restart never counts |

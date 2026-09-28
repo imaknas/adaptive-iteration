@@ -120,6 +120,15 @@ def build_parser() -> argparse.ArgumentParser:
     ca.add_argument("--sims", type=int, default=1000)
     ca.add_argument("--seed", type=int, default=0, help="same seed, same result")
 
+    rp = sub.add_parser("replay", help="an experiment's checkpoints under other judging "
+                                       "settings (writes nothing)")
+    rp.add_argument("--experiment", required=True)
+    rp.add_argument("--rule", choices=["welch", "proportion"])
+    rp.add_argument("--superiority", choices=["significance", "margin"])
+    rp.add_argument("--window-days", type=float)
+    rp.add_argument("--maturity-hours", type=float)
+    rp.add_argument("--max-windows", type=int)
+
     mg = sub.add_parser("migrate", help="convert a v0.1 ledger (JSON array) to JSONL")
     mg.add_argument("src")
     mg.add_argument("dst")
@@ -205,6 +214,11 @@ def run(args: argparse.Namespace) -> Any:
                                  per_window=args.per_window, pool=load_pool(args.pool_file),
                                  pool_b=load_pool(args.pool_b_file), sims=args.sims,
                                  seed=args.seed)
+    if args.command == "replay":
+        return service.replay_experiment(
+            L, args.experiment, rule=args.rule, superiority=args.superiority,
+            window_days=args.window_days, maturity_hours=args.maturity_hours,
+            max_windows=args.max_windows)
     if args.command == "assign":
         return service.assign_variant(L, args.experiment, args.unit, args.stratum)
     if args.command == "pending":

@@ -36,6 +36,9 @@ Workflow:
 7. pending(domain) lists closed verdicts not yet in effect. Put each into effect in
    the pipeline (ask the user first if it changes the pipeline), then mark_applied.
 8. evidence(domain) before proposing what to test next.
+9. To check whether the judging itself behaves well: calibrate (false winners and
+   detection on this domain's data) and replay_experiment (an experiment's
+   checkpoints under other settings). Both write nothing.
 
 Rules you must follow:
 - Act only on closed verdicts (b_better, a_better, equivalent, no_detectable_diff).
@@ -47,6 +50,9 @@ Rules you must follow:
   else does change (model, prompt, config), call restart_experiment so only data
   from after the change counts, and tell the user. Never continue across the change.
 - configure() does not change running experiments; don't use it to rescue one.
+- replay_experiment is for checking a rule, never for choosing settings after
+  seeing a result. Trying rules until one shows a winner, then configuring to
+  match, fools the next experiment the same way.
 """
 
 
@@ -200,6 +206,22 @@ def build_server(ledger: str) -> Any:
     def status(domain: Optional[str] = None) -> dict[str, Any]:
         """Experiments per domain, with state and verdict."""
         return service.status(ledger, domain)
+
+    @server.tool(annotations=read_only)
+    @guard
+    def replay_experiment(experiment_id: str, rule: Optional[str] = None,
+                          superiority: Optional[str] = None,
+                          window_days: Optional[float] = None,
+                          maturity_hours: Optional[float] = None,
+                          max_windows: Optional[int] = None) -> dict[str, Any]:
+        """An experiment's checkpoints re-run over its recorded data, under its locked
+        settings or with some overridden (rule "welch"/"proportion", superiority
+        "significance"/"margin", window_days, maturity_hours, max_windows). The
+        verdicts are hypothetical: nothing is written and nothing should be acted on."""
+        return service.replay_experiment(ledger, experiment_id, rule=rule,
+                                         superiority=superiority, window_days=window_days,
+                                         maturity_hours=maturity_hours,
+                                         max_windows=max_windows)
 
     @server.tool(annotations=read_only)
     @guard

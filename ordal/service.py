@@ -32,6 +32,7 @@ from .metrics import MetricSpec, Observation
 from .migrate import v1_to_v2 as _v1_to_v2
 from .registry import VariableDef, VariableRegistry
 from .replay import calibrate as _calibrate
+from .replay import replay as _replay
 from .screening import Screening
 from .shrinkage import approx_se, estimate_prior
 
@@ -406,6 +407,50 @@ def calibrate(ledger: PathLike, domain: str, *, effect: float, per_window: int,
             "median_windows_to_verdict": c.median_weeks_to_final,
             "outcomes": c.outcomes, "settings": cfg.to_dict()}
 
+
+
+def replay_experiment(ledger: PathLike, experiment_id: str, *, rule: Optional[str] = None,
+                      superiority: Optional[str] = None, window_days: Optional[float] = None,
+                      maturity_hours: Optional[float] = None,
+                      max_windows: Optional[int] = None) -> dict[str, Any]:
+    """What would an experiment's checkpoints have said under other judging settings?
+
+    Re-runs the judging week by week over the experiment's recorded data, each
+    checkpoint seeing only units that were mature by then. Settings default to the
+    ones the experiment is locked to; each argument overrides one. Writes nothing.
+    For checking whether a rule behaves well, never for picking settings after
+    seeing a result.
+    """
+    led = _open(ledger)
+    exp = led.experiment(experiment_id)
+    if exp is None:
+        raise ServiceError(f"unknown experiment {experiment_id!r}")
+    if not exp.started:
+        raise ServiceError(f"experiment {experiment_id} has not started; nothing to replay")
+    locked = config_for(led, exp)
+    if locked is None:
+        raise ServiceError(f"domain {exp.domain!r} is not configured; call configure")
+    overrides = {k: v for k, v in {"rule": rule, "superiority": superiority,
+                                   "window_days": window_days,
+                                   "maturity_hours": maturity_hours,
+                                   "max_windows": max_windows}.items() if v is not None}
+    try:
+        cfg = DomainConfig(**{**asdict(locked), "metric": locked.metric, **overrides})
+    except ValueError as e:
+        raise ServiceError(str(e)) from e
+    decisions = _replay(exp, led.observations(exp.id), cfg.metric, rule=cfg.build_rule(),
+                        window=timedelta(days=cfg.window_days),
+                        maturity=timedelta(hours=cfg.maturity_hours),
+                        max_windows=cfg.max_windows)
+    recorded = led.final_decision(exp.id)
+    return {"experiment": _experiment_dict(led, exp),
+            "settings_used": cfg.to_dict(),
+            "overridden": sorted(overrides),
+            # hypothetical verdicts: no next_action, nothing here is to be acted on
+            "checkpoints": [{k: v for k, v in _decision_dict(d, exp, cfg).items()
+                             if k not in ("next_action", "next_checkpoint", "settings")}
+                            for d in decisions],
+            "recorded_verdict": recorded.outcome.value if recorded else None}
 
 # ── Assignment and putting verdicts into effect ────────────────────────────────
 

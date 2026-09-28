@@ -264,6 +264,10 @@ calibrate(clicks, ProportionIntervalRule(), spec, effect=0.05, pool_b=clicks_plu
 replay(experiment, observations, spec, rule=candidate_rule)
 ```
 
+From the command line or an agent (MCP `replay_experiment`), a recorded experiment
+can be replayed under its own settings or with some overridden:
+`ordal replay --experiment 3f9a1c2e --superiority margin`. It writes nothing.
+
 Replay only reuses outcomes that were actually observed. It can evaluate *how you
 judge and schedule* experiments; it cannot predict how an untested hypothesis would
 have done.
